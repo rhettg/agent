@@ -40,11 +40,11 @@ func New(c CompletionFunc, opts ...Option) *Agent {
 	return a
 }
 
-// NewFromAssistant creates a new assistant based on an existing assistant.
+// NewFromAgent creates a new agent based on an existing agent.
 //
-// The new assistant will have the same capabilities and history as the previous
-// assistant, but any changes will not be propogated to the original.
-func NewFromAssistant(a *Agent) *Agent {
+// The new agent will have the same capabilities and history as the previous
+// agent, but any changes will not be propogated to the original.
+func NewFromAgent(a *Agent) *Agent {
 	na := &Agent{
 		completionFunc: a.completionFunc,
 		messages:       make([]*Message, 0, len(a.messages)),
