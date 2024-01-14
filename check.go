@@ -24,7 +24,7 @@ func (c CheckFunc) CompletionFunc(nextStep CompletionFunc) CompletionFunc {
 }
 
 func WithCheck(c CheckFunc) Option {
-	return func(a *Assistant) {
+	return func(a *Agent) {
 		a.checks = append(a.checks, c)
 	}
 }

@@ -16,7 +16,7 @@ func (f FilterFunc) CompletionFunc(nextStep CompletionFunc) CompletionFunc {
 }
 
 func WithFilter(f FilterFunc) Option {
-	return func(a *Assistant) {
+	return func(a *Agent) {
 		a.filters = append(a.filters, f)
 	}
 }

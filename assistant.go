@@ -15,7 +15,7 @@ const (
 
 type CompletionFunc func(context.Context, []*Message, []FunctionDef) (*Message, error)
 
-type Assistant struct {
+type Agent struct {
 	completionFunc CompletionFunc
 	messages       []*Message
 	FunctionSet    *FunctionSet
@@ -25,10 +25,10 @@ type Assistant struct {
 	checks  []CheckFunc
 }
 
-type Option func(a *Assistant)
+type Option func(a *Agent)
 
-func New(c CompletionFunc, opts ...Option) *Assistant {
-	a := &Assistant{
+func New(c CompletionFunc, opts ...Option) *Agent {
+	a := &Agent{
 		completionFunc: c,
 		messages:       make([]*Message, 0),
 	}
@@ -44,8 +44,8 @@ func New(c CompletionFunc, opts ...Option) *Assistant {
 //
 // The new assistant will have the same capabilities and history as the previous
 // assistant, but any changes will not be propogated to the original.
-func NewFromAssistant(a *Assistant) *Assistant {
-	na := &Assistant{
+func NewFromAssistant(a *Agent) *Agent {
+	na := &Agent{
 		completionFunc: a.completionFunc,
 		messages:       make([]*Message, 0, len(a.messages)),
 	}
@@ -73,42 +73,42 @@ func NewFromAssistant(a *Assistant) *Assistant {
 	return na
 }
 
-func (cc *Assistant) Add(role Role, content string) *Assistant {
+func (a *Agent) Add(role Role, content string) *Agent {
 	msg := newMessage()
 	msg.Role = role
 	msg.content = content
 
-	cc.messages = append(cc.messages, msg)
-	return cc
+	a.messages = append(a.messages, msg)
+	return a
 }
 
-func (cc *Assistant) AddDynamic(role Role, contentFn ContentFn) *Assistant {
+func (a *Agent) AddDynamic(role Role, contentFn ContentFn) *Agent {
 	msg := newMessage()
 	msg.Role = role
 	msg.contentFn = contentFn
 
-	cc.messages = append(cc.messages, msg)
-	return cc
+	a.messages = append(a.messages, msg)
+	return a
 }
 
-func (cc *Assistant) AddMessage(m *Message) *Assistant {
-	cc.messages = append(cc.messages, m)
-	return cc
+func (a *Agent) AddMessage(m *Message) *Agent {
+	a.messages = append(a.messages, m)
+	return a
 }
 
-func (cc *Assistant) Messages() []*Message {
-	msgs := make([]*Message, len(cc.messages))
-	copy(msgs, cc.messages)
+func (a *Agent) Messages() []*Message {
+	msgs := make([]*Message, len(a.messages))
+	copy(msgs, a.messages)
 	return msgs
 }
 
-func (cc *Assistant) Stop() {
+func (a *Agent) Stop() {
 	msg := newMessage()
 	msg.stop = true
-	cc.messages = append(cc.messages, msg)
+	a.messages = append(a.messages, msg)
 }
 
-func (cc *Assistant) Step(ctx context.Context) (*Message, error) {
+func (a *Agent) Step(ctx context.Context) (*Message, error) {
 	var err error
 
 	// Build our final completion function by wrapping appropriate middleware
@@ -119,24 +119,24 @@ func (cc *Assistant) Step(ctx context.Context) (*Message, error) {
 	// related to the "provider". Consider this some Sugar.
 	var cf CompletionFunc
 
-	for _, f := range cc.filters {
+	for _, f := range a.filters {
 		cf = f.CompletionFunc(cf)
 	}
 
-	cf = cc.completionFunc
-	if cc.FunctionSet != nil {
-		cf = cc.FunctionSet.CompletionFunc(cf)
+	cf = a.completionFunc
+	if a.FunctionSet != nil {
+		cf = a.FunctionSet.CompletionFunc(cf)
 	}
 
-	if cc.AgentSet != nil {
-		cf = cc.AgentSet.CompletionFunc(cf)
+	if a.AgentSet != nil {
+		cf = a.AgentSet.CompletionFunc(cf)
 	}
 
-	for _, c := range cc.checks {
+	for _, c := range a.checks {
 		cf = c.CompletionFunc(cf)
 	}
 
-	nextMsg, err := cf(ctx, cc.messages, nil)
+	nextMsg, err := cf(ctx, a.messages, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (cc *Assistant) Step(ctx context.Context) (*Message, error) {
 	}
 
 	// Now that our checks have passed, include the new message in our conversation.
-	cc.messages = append(cc.messages, nextMsg)
+	a.messages = append(a.messages, nextMsg)
 
 	return nextMsg, nil
 }

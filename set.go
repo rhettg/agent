@@ -26,7 +26,7 @@ var AgentStartSchema = chat.Schema{
 
 var AgentStopSchema = chat.EmptyParameters
 
-type agentStartFunc func() (*Assistant, string)
+type agentStartFunc func() (*Agent, string)
 
 // enum of AgentSession states
 type agentSetState int
@@ -50,7 +50,7 @@ type AgentSet struct {
 	state          agentSetState
 	name           string
 	welcomeMsg     string
-	agentAssistant *Assistant
+	agentAssistant *Agent
 
 	agentFns map[string]agentStartFunc
 }
@@ -190,7 +190,7 @@ func NewAgentSetFromAgentSet(as *AgentSet) *AgentSet {
 }
 
 func WithAgentSet(s *AgentSet) Option {
-	return func(a *Assistant) {
+	return func(a *Agent) {
 		a.AgentSet = s
 	}
 }

@@ -92,7 +92,7 @@ func NewFunctionSetFromFunctionSet(fs *FunctionSet) *FunctionSet {
 }
 
 func WithFunctionSet(f *FunctionSet) Option {
-	return func(a *Assistant) {
+	return func(a *Agent) {
 		a.FunctionSet = f
 	}
 }
