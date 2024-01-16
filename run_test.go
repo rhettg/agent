@@ -8,24 +8,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStep(t *testing.T) {
-	// Create a mock completion function
+func TestStopOnReply(t *testing.T) {
+	count := 0
 	mockFn := func(ctx context.Context, msgs []*Message, fns []FunctionDef) (*Message, error) {
 		reply := NewContentMessage(RoleAssistant, "why hello there")
+		count++
 		return reply, nil
 	}
 
-	// Create assistant with mock
-	a := New(mockFn)
+	a := New(mockFn, WithCheck(StopOnReply))
 
-	// Add a message
 	a.Add(RoleUser, "Hello")
 
-	// Step through messages
-	resp, err := a.Step(context.Background())
+	err := Run(context.Background(), a)
 	require.NoError(t, err)
+	require.Equal(t, 1, count)
 
-	// Validate response
+	msgs := a.Messages()
+	require.Equal(t, 2, len(msgs))
+
+	resp := msgs[1]
+
 	assert.Equal(t, RoleAssistant, resp.Role)
 	content, err := resp.Content(context.Background())
 	require.NoError(t, err)
