@@ -8,11 +8,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rakyll/openai-go"
 	"github.com/rhettg/agent"
 	"github.com/rhettg/agent/functions"
 	"github.com/rhettg/agent/provider/openaichat"
 	"github.com/rhettg/agent/set"
+	"github.com/sashabaranov/go-openai"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 		log.Fatal("OPENAI_API_KEY environment variable not set")
 	}
 
-	s := openai.NewSession(apiKey)
+	s := openai.NewClient(apiKey)
 	p := openaichat.New(s, "gpt-4")
 
 	as := set.New()

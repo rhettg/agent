@@ -9,9 +9,8 @@ import (
 	"path"
 	"time"
 
-	"github.com/rakyll/openai-go"
-	"github.com/rakyll/openai-go/chat"
 	"github.com/rhettg/agent/provider/openaichat"
+	"github.com/sashabaranov/go-openai"
 )
 
 type SessionStore struct {
@@ -60,7 +59,7 @@ func (s *SessionStore) initPath() error {
 	return nil
 }
 
-func (s *SessionStore) SaveParams(p *chat.CreateMMCompletionParams) error {
+func (s *SessionStore) SaveParams(p openai.ChatCompletionRequest) error {
 	err := s.initPath()
 	if err != nil {
 		return fmt.Errorf("failed to initialize data directory: %w", err)
@@ -85,7 +84,7 @@ func (s *SessionStore) SaveParams(p *chat.CreateMMCompletionParams) error {
 	return nil
 }
 
-func (s *SessionStore) SaveResponse(r *chat.CreateCompletionResponse) error {
+func (s *SessionStore) SaveResponse(r openai.ChatCompletionResponse) error {
 	err := s.initPath()
 	if err != nil {
 		return fmt.Errorf("failed to initialize data directory: %w", err)
@@ -149,8 +148,8 @@ func (s *SessionStore) SaveError(responseErr error) error {
 }
 
 func (s *SessionStore) Middleware(
-	ctx context.Context, params *chat.CreateMMCompletionParams, next openaichat.CreateCompletionFn,
-) (*chat.CreateCompletionResponse, error) {
+	ctx context.Context, params openai.ChatCompletionRequest, next openaichat.CreateCompletionFn,
+) (openai.ChatCompletionResponse, error) {
 	err := s.SaveParams(params)
 	if err != nil {
 		slog.Error("failed to save params to session store", "err", err)

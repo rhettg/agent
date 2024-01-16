@@ -4,7 +4,7 @@ go 1.21.4
 
 require (
 	github.com/jmorganca/ollama v0.1.20
-	github.com/rakyll/openai-go v1.0.9
+	github.com/sashabaranov/go-openai v1.18.2
 	github.com/stretchr/testify v1.8.4
 	github.com/tiktoken-go/tokenizer v0.1.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -18,5 +18,3 @@ require (
 	golang.org/x/sys v0.13.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/rakyll/openai-go => github.com/rhettg/openai-go v0.0.0-20240110191337-84f7b1336a9f

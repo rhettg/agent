@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rakyll/openai-go/chat"
 	"github.com/rhettg/agent"
 )
 
@@ -13,7 +12,7 @@ type Functions struct {
 	defs []agent.FunctionDef
 }
 
-func (f *Functions) Add(name, description string, parameters chat.Schema, fn agent.Function) {
+func (f *Functions) Add(name, description string, parameters any, fn agent.Function) {
 	def := agent.FunctionDef{
 		Name:        name,
 		Description: description,

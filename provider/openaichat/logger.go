@@ -6,11 +6,11 @@ import (
 
 	"log/slog"
 
-	"github.com/rakyll/openai-go/chat"
+	"github.com/sashabaranov/go-openai"
 )
 
 func Logger(l *slog.Logger) MiddlewareFunc {
-	return func(ctx context.Context, params *chat.CreateMMCompletionParams, next CreateCompletionFn) (*chat.CreateCompletionResponse, error) {
+	return func(ctx context.Context, params openai.ChatCompletionRequest, next CreateCompletionFn) (openai.ChatCompletionResponse, error) {
 		st := time.Now()
 		resp, err := next(ctx, params)
 		if err != nil {
@@ -22,7 +22,7 @@ func Logger(l *slog.Logger) MiddlewareFunc {
 			slog.Duration("elapsed", time.Since(st)),
 			slog.Int("prompt_tokens", resp.Usage.PromptTokens),
 			slog.Int("completion_tokens", resp.Usage.CompletionTokens),
-			slog.String("finish_reason", resp.Choices[0].FinishReason),
+			slog.String("finish_reason", string(resp.Choices[0].FinishReason)),
 		)
 		return resp, err
 	}

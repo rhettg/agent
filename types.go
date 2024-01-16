@@ -2,8 +2,6 @@ package agent
 
 import (
 	"context"
-
-	"github.com/rakyll/openai-go/chat"
 )
 
 type Role string
@@ -24,6 +22,5 @@ type FunctionDef struct {
 	Name        string
 	Description string
 
-	// TODO: decouple this from openai
-	Parameters chat.Schema
+	Parameters any
 }

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rakyll/openai-go/chat"
+	"github.com/sashabaranov/go-openai"
 )
 
 func isRetry(err error) bool {
@@ -26,7 +26,7 @@ func Retry(limit int) MiddlewareFunc {
 
 	backoff := 100 * time.Millisecond
 
-	return func(ctx context.Context, params *chat.CreateMMCompletionParams, next CreateCompletionFn) (*chat.CreateCompletionResponse, error) {
+	return func(ctx context.Context, params openai.ChatCompletionRequest, next CreateCompletionFn) (openai.ChatCompletionResponse, error) {
 		for try := 0; try < limit; try++ {
 			resp, err := next(ctx, params)
 			if err != nil {
@@ -43,7 +43,6 @@ func Retry(limit int) MiddlewareFunc {
 			return resp, nil
 		}
 
-		return nil, fmt.Errorf("reached retry limit")
+		return openai.ChatCompletionResponse{}, fmt.Errorf("reached retry limit")
 	}
-
 }

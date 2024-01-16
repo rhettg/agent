@@ -6,8 +6,8 @@ github.com/jmorganca/ollama v0.1.20 h1:Gi//a4j254I4CexOkpoBIfA1MrlXMrj5YXDNclxct
 github.com/jmorganca/ollama v0.1.20/go.mod h1:Yz4aZ1D5MKwoowj564p3TQqwebUbW3x3No2izBG9CEc=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/rhettg/openai-go v0.0.0-20240110191337-84f7b1336a9f h1:C6vR+V63tPpX437MXM2XtWqZu9PF19D//JcuMuNSknY=
-github.com/rhettg/openai-go v0.0.0-20240110191337-84f7b1336a9f/go.mod h1:hQpeaAVYbRXtWjFUew82LmbEIASmjihU3aI5NfJdqxA=
+github.com/sashabaranov/go-openai v1.18.2 h1:UnC307Mgc+fiIDUmEJCiCvRoMxdFrLtQlg8A594pnG8=
+github.com/sashabaranov/go-openai v1.18.2/go.mod h1:lj5b/K+zjTSFxVLijLSTDZuP7adOgerWeFyZLUhAKRg=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/tiktoken-go/tokenizer v0.1.0 h1:c1fXriHSR/NmhMDTwUDLGiNhHwTV+ElABGvqhCWLRvY=

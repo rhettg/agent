@@ -7,17 +7,17 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/rakyll/openai-go/chat"
 	"github.com/rhettg/agent"
 	"github.com/rhettg/agent/functions"
+	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
 var StartHelp = `Start a conversation with a new AI Agent`
 var StopHelp = `Stop current conversation with an AI Agent and resume talking to the user`
 
-var StartSchema = chat.Schema{
+var StartSchema = jsonschema.Definition{
 	Type: "object",
-	Properties: map[string]chat.Schema{
+	Properties: map[string]jsonschema.Definition{
 		"agent": {
 			Type:        "string",
 			Description: "name of an agent to start",
@@ -26,7 +26,10 @@ var StartSchema = chat.Schema{
 	Required: []string{"agent"},
 }
 
-var StopSchema = chat.EmptyParameters
+var StopSchema = jsonschema.Definition{
+	Type:       "object",
+	Properties: map[string]jsonschema.Definition{},
+}
 
 type startFunc func() (*agent.Agent, string)
 

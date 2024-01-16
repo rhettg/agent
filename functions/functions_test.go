@@ -4,17 +4,22 @@ import (
 	"context"
 	"testing"
 
-	"github.com/rakyll/openai-go/chat"
+	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var EmptyParameters = jsonschema.Definition{
+	Type:       "object",
+	Properties: map[string]jsonschema.Definition{},
+}
 
 func TestFunctionSet(t *testing.T) {
 	ctx := context.Background()
 
 	fs := New()
 
-	fs.Add("hello", "Say hello", chat.EmptyParameters, func(ctx context.Context, args string) (string, error) {
+	fs.Add("hello", "Say hello", EmptyParameters, func(ctx context.Context, args string) (string, error) {
 		return "Hello world!", nil
 	})
 
@@ -40,7 +45,7 @@ func TestFunctionSet_CompletionFunc(t *testing.T) {
 
 	fs := New()
 
-	fs.Add("hello", "say hello", chat.EmptyParameters, func(ctx context.Context, args string) (string, error) {
+	fs.Add("hello", "say hello", EmptyParameters, func(ctx context.Context, args string) (string, error) {
 		resp, err := hello(ctx, args)
 		if err != nil {
 			return "", err
@@ -56,6 +61,8 @@ func TestFunctionSet_CompletionFunc(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, content, "Hello world")
 
-	_, err = fs.call(ctx, "worldDomination", `{}`)
-	require.EqualError(t, err, "function not found: worldDomination")
+	msg, err = fs.call(ctx, "worldDomination", `{}`)
+	require.NoError(t, err)
+	content, _ = msg.Content(ctx)
+	require.Contains(t, content, "function not found: worldDomination")
 }
