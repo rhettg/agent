@@ -35,10 +35,27 @@ func RunUntil(ctx context.Context, s Stepper, uf UntilFunc) error {
 	}
 }
 
-// Run until the context is done
 func Run(ctx context.Context, s Stepper) error {
-	until := func(ctx context.Context, _ *Message) bool {
+	until := func(ctx context.Context, m *Message) bool {
+		if m != nil {
+			return m.IsStop()
+		}
 		return false
 	}
 	return RunUntil(ctx, s, until)
+}
+
+// StopOnReply is a check function that marks the message as a stop if
+// the assistant replies to the user.
+//
+// This is common in agent chats where a dialog should continue for many steps
+// until the assistant actually directly responds to the user.
+func StopOnReply(ctx context.Context, m *Message) error {
+	if m == nil {
+		return nil
+	}
+	if m.Role == RoleAssistant && m.FunctionCallName == "" {
+		m.stop = true
+	}
+	return nil
 }
