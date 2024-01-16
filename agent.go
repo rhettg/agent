@@ -14,18 +14,20 @@ const (
 )
 
 type CompletionFunc func(context.Context, []*Message, []FunctionDef) (*Message, error)
+type MiddlewareFunc func(nextStep CompletionFunc) CompletionFunc
 
 type Agent struct {
 	completionFunc CompletionFunc
 	messages       []*Message
-	FunctionSet    *FunctionSet
-	AgentSet       *AgentSet
-
-	filters []FilterFunc
-	checks  []CheckFunc
 }
 
 type Option func(a *Agent)
+
+func WithMiddleware(m MiddlewareFunc) Option {
+	return func(a *Agent) {
+		a.completionFunc = m(a.completionFunc)
+	}
+}
 
 func New(c CompletionFunc, opts ...Option) *Agent {
 	a := &Agent{
@@ -52,22 +54,6 @@ func NewFromAgent(a *Agent) *Agent {
 
 	for _, m := range a.messages {
 		na.messages = append(na.messages, NewMessageFromMessage(m))
-	}
-
-	if a.FunctionSet != nil {
-		na.FunctionSet = NewFunctionSetFromFunctionSet(a.FunctionSet)
-	}
-
-	if a.AgentSet != nil {
-		na.AgentSet = NewAgentSetFromAgentSet(a.AgentSet)
-	}
-
-	for _, f := range a.filters {
-		na.filters = append(na.filters, f)
-	}
-
-	for _, c := range a.checks {
-		na.checks = append(na.checks, c)
 	}
 
 	return na
@@ -109,46 +95,18 @@ func (a *Agent) Stop() {
 }
 
 func (a *Agent) Step(ctx context.Context) (*Message, error) {
-	var err error
-
-	// Build our final completion function by wrapping appropriate middleware
-	// around it.  This pattern is pretty flexible.  It would be entirely
-	// possible for our Assistant to not know anything about FunctionSets or
-	// AgentSets, however from an API perspective it's real easy to set this up
-	// incorrectly. It isn't obvious ahead of time how or why functions are
-	// related to the "provider". Consider this some Sugar.
-	var cf CompletionFunc
-
-	for _, f := range a.filters {
-		cf = f.CompletionFunc(cf)
-	}
-
-	cf = a.completionFunc
-	if a.FunctionSet != nil {
-		cf = a.FunctionSet.CompletionFunc(cf)
-	}
-
-	if a.AgentSet != nil {
-		cf = a.AgentSet.CompletionFunc(cf)
-	}
-
-	for _, c := range a.checks {
-		cf = c.CompletionFunc(cf)
-	}
-
-	nextMsg, err := cf(ctx, a.messages, nil)
+	nextMsg, err := a.completionFunc(ctx, a.messages, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// We support an empty step. This would be possible if there is some
+	// An empty step is oke. This would be possible if there is some
 	// internal state, like a sub-assistant, that hasn't yet resulted in a
 	// message.
 	if nextMsg == nil {
 		return nil, nil
 	}
 
-	// Now that our checks have passed, include the new message in our conversation.
 	a.messages = append(a.messages, nextMsg)
 
 	return nextMsg, nil

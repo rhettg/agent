@@ -1,6 +1,8 @@
 package agent
 
-import "context"
+import (
+	"context"
+)
 
 type FilterFunc func(context.Context, []*Message) ([]*Message, error)
 
@@ -16,7 +18,5 @@ func (f FilterFunc) CompletionFunc(nextStep CompletionFunc) CompletionFunc {
 }
 
 func WithFilter(f FilterFunc) Option {
-	return func(a *Agent) {
-		a.filters = append(a.filters, f)
-	}
+	return WithMiddleware(f.CompletionFunc)
 }
