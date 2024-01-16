@@ -20,6 +20,7 @@ type provider struct {
 	temperature float64
 	maxTokens   int
 	mw          []MiddlewareFunc
+	modelName   string
 }
 
 type Option func(p *provider)
@@ -45,6 +46,7 @@ func WithMaxTokens(m int) func(p *provider) {
 func New(c *openai.Client, modelName string, opts ...Option) agent.CompletionFunc {
 	p := &provider{
 		client:      c,
+		modelName:   modelName,
 		temperature: defaultTemperature,
 	}
 
@@ -128,6 +130,7 @@ func (p *provider) Completion(
 	}
 
 	params := openai.ChatCompletionRequest{
+		Model:    p.modelName,
 		Messages: pMsgs,
 		Tools:    tools,
 	}
