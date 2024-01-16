@@ -15,12 +15,12 @@ import (
 )
 
 func main() {
-	key := os.Getenv("OPENAI_API_KEY")
-	if key == "" {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
 		log.Fatal("OPENAI_API_KEY environment variable not set")
 	}
 
-	s := openai.NewSession("my-secret-key")
+	s := openai.NewSession(apiKey)
 	p := openaichat.New(s, "gpt-4")
 
 	as := set.New()
