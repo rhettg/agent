@@ -2,6 +2,7 @@ package openaichat
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -72,27 +73,28 @@ func (p *provider) Completion(
 			})
 		}
 
-		/*
-			TODO: reimplement images. Need base64 encoding
-			for _, img := range m.Images() {
-				ic := openai.ChatMessagePart{
-					Type: openai.ChatMessagePartTypeImageURL,
-					ImageURL: imageURL,
-				}
+		for _, img := range m.Images() {
+			mimeType := mimeType(img.Name)
+			imageURL := encodeImageURL(mimeType, img.Data)
 
-				//ic, err := chat.NewContentFromImage(mimeType(img.Name), img.Data)
-				//if err != nil {
-					//return nil, fmt.Errorf("failed to create content from image: %w", err)
-				//}
-				content = append(content, ic)
+			ic := openai.ChatMessagePart{
+				Type: openai.ChatMessagePartTypeImageURL,
+				ImageURL: &openai.ChatMessageImageURL{
+					URL:    imageURL,
+					Detail: openai.ImageURLDetailAuto,
+				},
 			}
-		*/
+
+			content = append(content, ic)
+		}
 
 		pm := openai.ChatCompletionMessage{
 			Role: string(m.Role),
 		}
 
-		if len(content) > 1 || content[0].Type != openai.ChatMessagePartTypeText {
+		if len(content) == 0 {
+			pm.Content = ""
+		} else if len(content) > 1 || content[0].Type != openai.ChatMessagePartTypeText {
 			pm.MultiContent = content
 		} else {
 			pm.Content = content[0].Text
@@ -172,4 +174,24 @@ func mimeType(name string) string {
 	}
 
 	return "image/" + strings.ToLower(name[dot+1:])
+}
+
+func encodeImageURL(mimeType string, data []byte) string {
+	// Based on the python reference code in
+	// https://platform.openai.com/docs/guides/vision/uploading-base-64-encoded-images
+	// this should be the parallel of:
+	//     base64.b64encode(image_file.read()).decode('utf-8')
+	// which defaults to the standard base64 encoding.  I would have guessed
+	// it would be using the URL-safe encoding but that isn't what the code is
+	// saying.
+	dst := make([]byte, base64.StdEncoding.EncodedLen(len(data)))
+	base64.StdEncoding.Encode(dst, data)
+
+	image_url := strings.Builder{}
+	image_url.WriteString("data:")
+	image_url.WriteString(mimeType)
+	image_url.WriteString(";base64,")
+	image_url.Write(dst)
+
+	return image_url.String()
 }
