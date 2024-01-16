@@ -21,3 +21,12 @@ func (f FilterFunc) CompletionFunc(nextStep CompletionFunc) CompletionFunc {
 func WithFilter(f FilterFunc) Option {
 	return WithMiddleware(f.CompletionFunc)
 }
+
+func LimitMessagesFilter(max int) FilterFunc {
+	return func(ctx context.Context, msgs []*Message) ([]*Message, error) {
+		if len(msgs) > max {
+			return msgs[len(msgs)-max:], nil
+		}
+		return msgs, nil
+	}
+}
