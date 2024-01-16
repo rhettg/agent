@@ -1,113 +1,212 @@
-# Coder
+# Agent - Go library for bulding LLM-based applications
 
 ## Description
 
-## Installation
+This library provides an architecture for building LLM-based applications.
+
+Specifically it wraps underlying Chat interfaces for LLMs providing an
+application architecture that can be useful for building agents. The focus is to
+provide first-class support for tools and complex workflows.
+
+This can be thought of as a native-go approach to Python frameworks such as
+[langchain](https://github.com/langchain-ai/langchain).
 
 ## Usage
 
 ```go
-// Provider specific configuration results in a generic "completer" interface.
-s := openai.NewSession("my-secret-key")
+s := openai.NewClient("my-api-key")
+p := openaichat.New(s, "gpt-4")
 
-usage := chatgpt.Usage{}
-client := chat.NewClient(session, modelName)
+fs := functions.New()
 
-completer := provider.NewOpenAIChat(s, "gpt-4", usage.Middleware)
+a := agent.New(p,
+	agent.WithFilter(agent.LimitMessagesFilter(5)),
 
-// Functions are configured together as a set.
-fs := function.NewFunctionSet()
-fs.Add("hello", "Says hello", chat.EmptyParameters, func(ctx context.Context, args string) (string, error) {
-	fmt.Println("Hello")
-})
+	// Next add functions because they are one of the rare cases where we
+	// intercept and directly handle completions.
+	functions.WithFunctions(fs),
+)
 
-a := assistant.New(completer,
-	WithMiddleware(usage.Middleware),
-	WithFunctionSet(fs))
+a.Add(agent.RoleSystem, "You are a helpful assistant.")
+a.Add(agent.RoleUser, "Are you alive?")
 
-// Content is added to the assistant along with a Role.
-a.Add(assistant.RoleSystem, systemPrompt)
-
-a.Add(assistant.RoleUser, "Greetings!")
-
-// Dynamic content can be added which will call the provided function to
-// generate content on each interation.
-a.AddDynamic(assistant.RoleUser, func(ctx context.Context) (string, error) {
-	return fmt.Sprintf("Hello %s, today is %s", name, time.Now().Format("January 2, 2006"))
-})
-
-// A Filter can modify the messages prior to sending to a provider
-a.Filter(func(ctx context.Context, msgs []*assistant.Message) ([]*assistant.Message), error) {
-	return msgs
-})
-
-// Checks are called after a provider responds.
-a.Check(func(ctx context.Context, msg *assistant.Message) (error) {
-	if msg.FunctionCall != "hello" {
-		a.Add(assistant.RoleUser, "required function hello not called")
-	}
-	return nil
-})
-
-for {
-	msg, err := a.Step(context.Background())
+// Allow a single call to the underlying provider.
+r, err := a.Step(context.Background())
+if err != nil {
+	log.Fatalf("error from Agent: %v", err)
 }
 
-// TODO: what about concurrency, half the point.
-// Sub-assistants could run concurrently. But that breaks the model of asking
-// the caller for each step. We still need some guardrails to be available... step limits?
-
-maxSteps := 5
-g, ctx := errgroup.WithContext(ctx)
-g.Go(func() error {
-	assistant.RunUntil(ctx, a, assistant.AssistantResponded(maxSteps))
-})
-g.Go(func() error {
-	assistant.RunUntil(ctx, a, assistant.AssistantResponded(maxSteps))
-})
-
-err := g.Wait()
-
-// TODO: do I want to have a worker pool to restrict parallel requests to the model? Could the provider need to handle this?
-
-// Or for even more flexibility:
-
-assistant.RunUntil(ctx, a, func(ctx context.Context) bool {
-	return true
-})
-
-// There are some helpful utility defaults
-assistant.RunUntil(ctx, a, assistant.UntilAssistantResponded(maxSteps))
-
-// Stopping the assistant can also be explicit
-a.AddStop()
-assistant.RunUntil(ctx, a, assistant.UntilStop)
-
-// Layer assistants for another level of control
-
-// TODO: What about stopping...? Does that mean it's a message now?
-type Stepper interface {
-	Step(context.Context) (*assistant.Message, error)
+c, err := r.Content(context.Background())
+if err != nil {
+	log.Fatalf("error from Message: %v", err)
 }
 
-type StepFunc func(context.Context) (*assistant.Message, error)
+fmt.Println(c)
+```
 
-func (f StepFunc) Step(ctx context.Context) (m *assistant.Message, err error) {
-	return f(ctx)
-}
+## Design
 
-func stepLayer(ctx context.Context) (*assistant.Message, error) {
-	fmt.Println("about to step")
-	resp, err := a.Step(ctx)
-	if err != nil {
-		fmt.Println("error while stepping")
+### Dialog
+
+The Agent is at root a data model for a dialog. It contains a sequence of
+messages between multiple entities (including `system`, `user`, `assistant`, and
+`function`).
+
+These messages are passed to a CompletionFunc which maybe be a chain of
+middleware providing additional functionality.
+
+### CompletionFunc
+
+The design for Agent is inspired by [`net/http`](https://pkg.go.dev/net/http).
+Most features are implemented as middleware around the underlying provider.
+
+```go
+type CompletionFunc func(context.Context, []*Message, []FunctionDef) (*Message, error)
+```
+
+All providers need to implement this signature to issue completion requests to the underlying LLM.
+
+"Middleware" is implemented by wrapping the provider in layers, like an onion.
+
+### Provider
+
+The provider is the interface for the underlying LLM. It is responsible for
+sending the available messages and functions to the LLM. The provided example
+providers also make use of a similar middleware pattern for providing additional
+functionality.
+
+For example, logging for the `openaichat` provider is configured like:
+
+```go
+slog.SetDefault(slog.New(&slogor.Handler{
+	Mutex:      new(sync.Mutex),
+	Level:      slog.LevelDebug,
+	TimeFormat: time.Stamp,
+}))
+
+s := openai.NewClient("my-api-key")
+p := openaichat.New(s, "gpt-4",
+	openaichat.WithMiddleware(openaichat.Logger(slog.Default())),
+)
+```
+
+While the implementation itself composes like an onion:
+
+```go
+func Logger(l *slog.Logger) MiddlewareFunc {
+	return func(ctx context.Context, params openai.ChatCompletionRequest, next CreateCompletionFn) (openai.ChatCompletionResponse, error) {
+		st := time.Now()
+
+		resp, err := next(ctx, params)
+		if err != nil {
+			l.LogAttrs(ctx, slog.LevelError, "failed executing completion", slog.String("error", err.Error()))
+			return resp, err
+		}
+
+		l.LogAttrs(ctx, slog.LevelDebug, "executed completion",
+			slog.Duration("elapsed", time.Since(st)),
+			slog.Int("prompt_tokens", resp.Usage.PromptTokens),
+			slog.Int("completion_tokens", resp.Usage.CompletionTokens),
+			slog.String("finish_reason", string(resp.Choices[0].FinishReason)),
+		)
 		return resp, err
 	}
-
-	fmt.Println("done with step")
-	return resp, nil
 }
-
-assistant.RunUntil(ctx, StepFunc(stepLayer), assistant.UntilStop)
-
 ```
+
+## Features
+
+### Filters
+
+Filters allow for breaking the 1-1 relationship between Agent messages and what
+is sent to the underlying provider.
+
+LLMs have limited Context windows, so this provides helpful functionality for
+having greater control over the context without throwing away potentially
+valuable information.
+
+A simple example of a filter might limit how many messages to send:
+
+```go
+func LimitMessagesFilter(max int) FilterFunc {
+	return func(ctx context.Context, msgs []*Message) ([]*Message, error) {
+		if len(msgs) > max {
+			return msgs[len(msgs)-max:], nil
+		}
+		return msgs, nil
+	}
+}
+```
+
+This can then be added to the agent configuration:
+
+```go
+a := agent.New(c, "gpt-4", agent.WithFilter(LimitMessagesFilter(5)))
+```
+
+### Checks
+
+Checks are the response side of filters: it's a convinient way to intercept responses from the provider chain.
+
+```go
+func hasSecret(ctx context.Context, msg *agent.Message) error {
+	c, _ := msg.Content(ctx)
+	if strings.Contains(c, "secret") {
+		return errors.New("has a secret")
+	}
+
+	return nil
+}
+```
+
+This can then be added to the agent configuration:
+
+```go
+a := agent.New(c, "gpt-4", agent.WithCheck(hasSecret))
+```
+
+### Functions
+
+### Vision
+
+Messages can include image data:
+
+```go
+imgData, _ := os.ReadFile("camera.jpg")
+m := agent.NewImageMessage(agent.RoleUser, "please explain", "camera.jpg", imgData)
+a.AddMessage(m)
+```
+
+See [example](./examples/vision/main.go)
+
+### Agent Set
+
+An Agent Set allows an LLM to start a dialog with another LLM. It exposes two new tools for your primary agent to call:
+
+* `agent_start` - starts an agent
+* `agent_stop` - stops an agent
+
+```go
+s := set.New()
+s.Add("eyes", EyesAgentStartFunc())
+
+fs := functions.New()
+fs.AddFunctions(a.Functions())
+
+a := agent.New(c, set.WithAgentSet(s))
+```
+
+### Message Attributes
+
+Each message may contain a set of attributes that are not likely to be used by
+the LLM, but can provide important contextual clues for other parts of the
+application.
+
+```go
+m := agent.NewContentMessage(agent.RoleUser, "content...")
+m.SetAttr("important", "true")
+```
+
+This works well with filters.
+
+### Run patterns
