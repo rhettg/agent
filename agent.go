@@ -4,18 +4,6 @@ import (
 	"context"
 )
 
-type Role string
-
-const (
-	RoleSystem    = Role("system")
-	RoleUser      = Role("user")
-	RoleAssistant = Role("assistant")
-	RoleFunction  = Role("function")
-)
-
-type CompletionFunc func(context.Context, []*Message, []FunctionDef) (*Message, error)
-type MiddlewareFunc func(nextStep CompletionFunc) CompletionFunc
-
 type Agent struct {
 	completionFunc CompletionFunc
 	messages       []*Message

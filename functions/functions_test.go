@@ -1,4 +1,4 @@
-package agent
+package functions
 
 import (
 	"context"
@@ -10,10 +10,9 @@ import (
 )
 
 func TestFunctionSet(t *testing.T) {
-
 	ctx := context.Background()
 
-	fs := NewFunctionSet()
+	fs := New()
 
 	fs.Add("hello", "Say hello", chat.EmptyParameters, func(ctx context.Context, args string) (string, error) {
 		return "Hello world!", nil
@@ -26,8 +25,10 @@ func TestFunctionSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Hello world!", content)
 
-	_, err = fs.call(ctx, "invalid", "{}")
-	assert.Error(t, err)
+	r, err := fs.call(ctx, "invalid", "{}")
+	rc, _ := r.Content(ctx)
+	assert.Equal(t, "function not found: invalid", rc)
+	assert.NoError(t, err)
 }
 
 func hello(ctx context.Context, args string) (string, error) {
@@ -37,7 +38,7 @@ func hello(ctx context.Context, args string) (string, error) {
 func TestFunctionSet_CompletionFunc(t *testing.T) {
 	ctx := context.Background()
 
-	fs := NewFunctionSet()
+	fs := New()
 
 	fs.Add("hello", "say hello", chat.EmptyParameters, func(ctx context.Context, args string) (string, error) {
 		resp, err := hello(ctx, args)

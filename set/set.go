@@ -9,6 +9,7 @@ import (
 
 	"github.com/rakyll/openai-go/chat"
 	"github.com/rhettg/agent"
+	"github.com/rhettg/agent/functions"
 )
 
 var StartHelp = `Start a conversation with a new AI Agent`
@@ -167,8 +168,8 @@ func (a *Set) Stop(ctx context.Context, arguments string) (string, error) {
 	return fmt.Sprintf("%s has left the chat", a.name), nil
 }
 
-func (a *Set) FunctionSet() *agent.FunctionSet {
-	fs := agent.NewFunctionSet()
+func (a *Set) Functions() *functions.Functions {
+	fs := functions.New()
 	fs.Add("agent_start", StartHelp, StartSchema, a.Start)
 	fs.Add("agent_stop", StopHelp, StopSchema, a.Stop)
 	return fs
