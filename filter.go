@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 )
 
 type FilterFunc func(context.Context, []*Message) ([]*Message, error)
@@ -10,7 +11,7 @@ func (f FilterFunc) CompletionFunc(nextStep CompletionFunc) CompletionFunc {
 	return func(ctx context.Context, msgs []*Message, fns []FunctionDef) (*Message, error) {
 		fMsgs, err := f(ctx, msgs)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("filter failed: %w", err)
 		}
 
 		return nextStep(ctx, fMsgs, fns)
