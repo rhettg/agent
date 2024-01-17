@@ -227,7 +227,14 @@ application.
 
 ```go
 m := agent.NewContentMessage(agent.RoleUser, "content...")
-m.SetAttr("important", "true")
+m.SetAttr("summary", getSummary())
+```
+
+A special case of attributes with no content are Tags:
+
+```go
+m := agent.NewContentMessage(agent.RoleUser, "content...")
+m.Tag("important")
 ```
 
 This works well with filters.

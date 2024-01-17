@@ -57,6 +57,19 @@ func (m *Message) GetAttr(key string) string {
 	return m.attrs[key]
 }
 
+func (m *Message) Tag(key string) {
+	m.attrs[key] = ""
+}
+
+func (m *Message) ClearTag(key string) {
+	delete(m.attrs, key)
+}
+
+func (m *Message) HasTag(key string) bool {
+	_, ok := m.attrs[key]
+	return ok
+}
+
 func newMessage() *Message {
 	return &Message{attrs: make(map[string]string)}
 }
