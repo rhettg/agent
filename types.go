@@ -13,12 +13,12 @@ const (
 	RoleFunction  = Role("function")
 )
 
-type CompletionFunc func(context.Context, []*Message, []FunctionDef) (*Message, error)
+type CompletionFunc func(context.Context, []*Message, []ToolDef) (*Message, error)
 type MiddlewareFunc func(nextStep CompletionFunc) CompletionFunc
 
-type Function func(context.Context, string) (string, error)
+type Tool func(context.Context, string) (string, error)
 
-type FunctionDef struct {
+type ToolDef struct {
 	Name        string
 	Description string
 

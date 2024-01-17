@@ -10,7 +10,7 @@ import (
 
 func TestStopOnReply(t *testing.T) {
 	count := 0
-	mockFn := func(ctx context.Context, msgs []*Message, fns []FunctionDef) (*Message, error) {
+	mockFn := func(ctx context.Context, msgs []*Message, fns []ToolDef) (*Message, error) {
 		reply := NewContentMessage(RoleAssistant, "why hello there")
 		count++
 		return reply, nil

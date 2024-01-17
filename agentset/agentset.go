@@ -97,7 +97,7 @@ func (a *AgentSet) Start(ctx context.Context, arguments string) (string, error) 
 }
 
 func (a *AgentSet) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc {
-	return func(ctx context.Context, msgs []*agent.Message, fns []agent.FunctionDef) (*agent.Message, error) {
+	return func(ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef) (*agent.Message, error) {
 		slog.Debug("AgentSet.CompletionFunc", "agent", a.name, "agent_state", a.state)
 		switch a.state {
 		case stateStarted:
@@ -152,7 +152,7 @@ func (a *AgentSet) CompletionFunc(nextStep agent.CompletionFunc) agent.Completio
 			}
 			return nil, nil
 		case stateIdle, stateWaiting:
-			return nextStep(ctx, msgs, fns)
+			return nextStep(ctx, msgs, tdfs)
 		}
 
 		return nil, errors.New("unknown agent set state")

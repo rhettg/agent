@@ -8,13 +8,13 @@ import (
 type FilterFunc func(context.Context, []*Message) ([]*Message, error)
 
 func (f FilterFunc) CompletionFunc(nextStep CompletionFunc) CompletionFunc {
-	return func(ctx context.Context, msgs []*Message, fns []FunctionDef) (*Message, error) {
+	return func(ctx context.Context, msgs []*Message, tdfs []ToolDef) (*Message, error) {
 		fMsgs, err := f(ctx, msgs)
 		if err != nil {
 			return nil, fmt.Errorf("filter failed: %w", err)
 		}
 
-		return nextStep(ctx, fMsgs, fns)
+		return nextStep(ctx, fMsgs, tdfs)
 	}
 }
 

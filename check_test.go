@@ -13,7 +13,7 @@ func TestCheck(t *testing.T) {
 	var deliveredMsgs []*Message
 
 	// Create a mock completion function
-	mockFn := func(ctx context.Context, msgs []*Message, fns []FunctionDef) (*Message, error) {
+	mockFn := func(ctx context.Context, msgs []*Message, fns []ToolDef) (*Message, error) {
 		deliveredMsgs = msgs[:]
 
 		reply := NewContentMessage(RoleAssistant, "why hello there")
@@ -51,7 +51,7 @@ func TestCheckError(t *testing.T) {
 	var deliveredMsgs []*Message
 
 	// Create a mock completion function
-	mockFn := func(ctx context.Context, msgs []*Message, fns []FunctionDef) (*Message, error) {
+	mockFn := func(ctx context.Context, msgs []*Message, fns []ToolDef) (*Message, error) {
 		deliveredMsgs = msgs[:]
 
 		reply := NewContentMessage(RoleAssistant, "why hello there")

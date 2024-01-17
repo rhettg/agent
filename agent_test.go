@@ -10,7 +10,7 @@ import (
 
 func TestStep(t *testing.T) {
 	// Create a mock completion function
-	mockFn := func(ctx context.Context, msgs []*Message, fns []FunctionDef) (*Message, error) {
+	mockFn := func(ctx context.Context, msgs []*Message, fns []ToolDef) (*Message, error) {
 		reply := NewContentMessage(RoleAssistant, "why hello there")
 		return reply, nil
 	}

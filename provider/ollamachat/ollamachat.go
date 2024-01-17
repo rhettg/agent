@@ -185,7 +185,7 @@ func formatDialogMistral(ctx context.Context, msgs []*agent.Message) (string, er
 }
 
 func (p *provider) Completion(
-	ctx context.Context, msgs []*agent.Message, fns []agent.FunctionDef,
+	ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef,
 ) (*agent.Message, error) {
 
 	var formatDialog formatDialogFn

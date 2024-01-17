@@ -8,8 +8,8 @@ import (
 type CheckFunc func(context.Context, *Message) error
 
 func (c CheckFunc) CompletionFunc(nextStep CompletionFunc) CompletionFunc {
-	return func(ctx context.Context, msgs []*Message, fns []FunctionDef) (*Message, error) {
-		msg, err := nextStep(ctx, msgs, fns)
+	return func(ctx context.Context, msgs []*Message, tdfs []ToolDef) (*Message, error) {
+		msg, err := nextStep(ctx, msgs, tdfs)
 		if err != nil {
 			return nil, err
 		}

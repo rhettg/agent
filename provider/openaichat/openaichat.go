@@ -58,7 +58,7 @@ func New(c *openai.Client, modelName string, opts ...Option) agent.CompletionFun
 }
 
 func (p *provider) Completion(
-	ctx context.Context, msgs []*agent.Message, fns []agent.FunctionDef,
+	ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef,
 ) (*agent.Message, error) {
 	pMsgs := make([]openai.ChatCompletionMessage, 0, len(msgs))
 	for _, m := range msgs {
@@ -117,8 +117,8 @@ func (p *provider) Completion(
 		pMsgs = append(pMsgs, pm)
 	}
 
-	tools := make([]openai.Tool, 0, len(fns))
-	for _, fd := range fns {
+	tools := make([]openai.Tool, 0, len(tdfs))
+	for _, fd := range tdfs {
 		tools = append(tools, openai.Tool{
 			Type: openai.ToolTypeFunction,
 			Function: openai.FunctionDefinition{

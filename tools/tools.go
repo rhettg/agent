@@ -8,12 +8,12 @@ import (
 )
 
 type Tools struct {
-	fns  map[string]agent.Function
-	defs []agent.FunctionDef
+	fns  map[string]agent.Tool
+	defs []agent.ToolDef
 }
 
-func (f *Tools) Add(name, description string, parameters any, fn agent.Function) {
-	def := agent.FunctionDef{
+func (f *Tools) Add(name, description string, parameters any, fn agent.Tool) {
+	def := agent.ToolDef{
 		Name:        name,
 		Description: description,
 		Parameters:  parameters,
@@ -49,7 +49,7 @@ func (f *Tools) call(ctx context.Context, name, arguments string) (*agent.Messag
 }
 
 func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc {
-	return func(ctx context.Context, msgs []*agent.Message, fns []agent.FunctionDef) (*agent.Message, error) {
+	return func(ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef) (*agent.Message, error) {
 		if len(msgs) > 0 {
 			lastMsg := msgs[len(msgs)-1]
 			if lastMsg.Role == agent.RoleAssistant && lastMsg.FunctionCallName != "" {
@@ -57,8 +57,8 @@ func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFu
 			}
 		}
 
-		nfns := make([]agent.FunctionDef, 0, len(fns)+len(f.defs))
-		nfns = append(nfns, fns...)
+		nfns := make([]agent.ToolDef, 0, len(tdfs)+len(f.defs))
+		nfns = append(nfns, tdfs...)
 		nfns = append(nfns, f.defs...)
 
 		return nextStep(ctx, msgs, nfns)
@@ -67,8 +67,8 @@ func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFu
 
 func New() *Tools {
 	return &Tools{
-		fns:  make(map[string]agent.Function),
-		defs: make([]agent.FunctionDef, 0),
+		fns:  make(map[string]agent.Tool),
+		defs: make([]agent.ToolDef, 0),
 	}
 }
 

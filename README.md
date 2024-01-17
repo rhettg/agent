@@ -17,14 +17,14 @@ This can be thought of as a native-go approach to Python frameworks such as
 s := openai.NewClient("my-api-key")
 p := openaichat.New(s, "gpt-4")
 
-fs := functions.New()
+ts := tools.New()
 
 a := agent.New(p,
 	agent.WithFilter(agent.LimitMessagesFilter(5)),
 
 	// Next add functions because they are one of the rare cases where we
 	// intercept and directly handle completions.
-	functions.WithFunctions(fs),
+	functions.WithTools(ts),
 )
 
 a.Add(agent.RoleSystem, "You are a helpful assistant.")
@@ -48,12 +48,13 @@ fmt.Println(c)
 
 ### Dialog
 
-The Agent is at root a data model for a dialog. It contains a sequence of
-messages between multiple entities (including `system`, `user`, `assistant`, and
+Agent is fundamentally a data model for a dialog. It contains a sequence of
+messages between entities (including `system`, `user`, `assistant`, and
 `function`).
 
-These messages are passed to a CompletionFunc which maybe be a chain of
-middleware providing additional functionality.
+When invoked, these messages are passed to a `CompletionFunc` which is
+ultimately a call to an LLM provider such as OpenAI. But through the use of
+Middleware can also provide significant flexibility and control.
 
 ### CompletionFunc
 
@@ -61,7 +62,7 @@ The design for Agent is inspired by [`net/http`](https://pkg.go.dev/net/http).
 Most features are implemented as middleware around the underlying provider.
 
 ```go
-type CompletionFunc func(context.Context, []*Message, []FunctionDef) (*Message, error)
+type CompletionFunc func(context.Context, []*Message, []ToolDef) (*Message, error)
 ```
 
 All providers need to implement this signature to issue completion requests to the underlying LLM.
@@ -72,8 +73,8 @@ All providers need to implement this signature to issue completion requests to t
 
 The provider is the interface for the underlying LLM. It is responsible for
 sending the available messages and functions to the LLM. The provided example
-providers also make use of a similar middleware pattern for providing additional
-functionality.
+providers also make use of the middleware pattern for implementing providing
+specific functionality.
 
 For example, logging for the `openaichat` provider is configured like:
 
@@ -94,7 +95,8 @@ While the implementation itself composes like an onion:
 
 ```go
 func Logger(l *slog.Logger) MiddlewareFunc {
-	return func(ctx context.Context, params openai.ChatCompletionRequest, next CreateCompletionFn) (openai.ChatCompletionResponse, error) {
+	return func(ctx context.Context, params openai.ChatCompletionRequest, next CreateCompletionFn) (
+		openai.ChatCompletionResponse, error) {
 		st := time.Now()
 
 		resp, err := next(ctx, params)
@@ -138,7 +140,7 @@ func LimitMessagesFilter(max int) FilterFunc {
 }
 ```
 
-This can then be added to the agent configuration:
+Filters are configured as options when creating the agent:
 
 ```go
 a := agent.New(c, agent.WithFilter(LimitMessagesFilter(5)))
@@ -146,7 +148,8 @@ a := agent.New(c, agent.WithFilter(LimitMessagesFilter(5)))
 
 ### Checks
 
-Checks are the response side of filters: it's a convinient way to intercept responses from the provider chain.
+Checks are the response side of filters: it's a convenient way to intercept
+responses from the provider chain.
 
 ```go
 func hasSecret(ctx context.Context, msg *agent.Message) error {
@@ -159,7 +162,7 @@ func hasSecret(ctx context.Context, msg *agent.Message) error {
 }
 ```
 
-This can then be added to the agent configuration:
+Checks are configured as options when creating the agent:
 
 ```go
 a := agent.New(c, agent.WithCheck(hasSecret))
@@ -188,7 +191,7 @@ a := agent.New(c, agent.WithTools(ts))
 ```
 
 Behind the scenes, `WithTools` middleware will intercept tool invocations and
-run the provided function as an agent Step.
+run the provided function as an agent step.
 
 ### Vision
 
@@ -219,10 +222,13 @@ ts.AddTools(as.Tools())
 a := agent.New(c, set.WithAgentSet(as))
 ```
 
+This is an example of advanced control flow that is supported by the design of
+Agent. The implementation of AgentSet required no modifications to Agent core.
+
 ### Message Attributes
 
-Each message may contain a set of attributes that are not likely to be used by
-the LLM, but can provide important contextual clues for other parts of the
+Each message may contain a set of attributes that are not directly used by the
+LLM, but can provide important contextual clues for other parts of the
 application.
 
 ```go
