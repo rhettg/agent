@@ -67,12 +67,6 @@ func (a *Agent) Messages() []*Message {
 	return msgs
 }
 
-func (a *Agent) Stop() {
-	msg := newMessage()
-	msg.stop = true
-	a.messages = append(a.messages, msg)
-}
-
 func (a *Agent) Step(ctx context.Context) (*Message, error) {
 	nextMsg, err := a.completionFunc(ctx, a.messages, nil)
 	if err != nil {

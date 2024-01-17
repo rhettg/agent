@@ -35,10 +35,12 @@ func RunUntil(ctx context.Context, s Stepper, uf UntilFunc) error {
 	}
 }
 
+const StopAttr = "agt:stop"
+
 func Run(ctx context.Context, s Stepper) error {
 	until := func(ctx context.Context, m *Message) bool {
 		if m != nil {
-			return m.IsStop()
+			return m.GetAttr(StopAttr) != ""
 		}
 		return false
 	}
@@ -55,7 +57,7 @@ func StopOnReply(ctx context.Context, m *Message) error {
 		return nil
 	}
 	if m.Role == RoleAssistant && m.FunctionCallName == "" {
-		m.stop = true
+		m.SetAttr(StopAttr, "true")
 	}
 	return nil
 }

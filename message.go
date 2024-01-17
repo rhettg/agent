@@ -30,7 +30,6 @@ type Message struct {
 
 	contentFn ContentFn
 	attrs     map[string]string
-	stop      bool
 }
 
 func (m *Message) Content(ctx context.Context) (string, error) {
@@ -56,10 +55,6 @@ func (m *Message) SetAttr(key, value string) {
 
 func (m *Message) GetAttr(key string) string {
 	return m.attrs[key]
-}
-
-func (m *Message) IsStop() bool {
-	return m.stop
 }
 
 func newMessage() *Message {
@@ -97,7 +92,6 @@ func NewMessageFromMessage(m *Message) *Message {
 	nm.FunctionCallName = m.FunctionCallName
 	nm.FunctionCallArgs = m.FunctionCallArgs
 	nm.contentFn = m.contentFn
-	nm.stop = m.stop
 	nm.imageData = make([]Image, len(m.imageData))
 	copy(nm.imageData, m.imageData)
 

@@ -260,3 +260,44 @@ a.AddMessage(msg)
 ```
 
 ### Run patterns
+
+Agents are designed to operate in "steps" by calling:
+
+```go
+msg, err := a.Step(context.Background())
+```
+
+A step is generally a single message sent to the LLM and the response returned.
+Middleware such as Tools can intercept those steps and run other actions
+instead.
+
+For prototypes, tools or other simple use cases, it may be helpful to run Step
+automatically until some end condition is detected. There are some built-in
+helpers to support this.
+
+`RunUntil` provides some sugar for running steps until either the context is
+canceled or a provided function returns `true`.
+
+```go
+count := 0
+func runTwice(ctx context.Context) bool {
+	count++
+	return count == 2
+}
+
+err := agent.RunUntil(context.Background(), a, runTwice)
+```
+
+One common usecase is to run an Agent until the Assistant responds to the user
+(rather than run tools). This can be easily configured with the `StopOnReply`
+check function.
+
+```go
+a := agent.New(c, agent.WithCheck(agent.StopOnReply))
+
+err := Run(context.Background(), a)
+```
+
+These patterns may not be appropriate for production applications where full
+control over the stopping of an agent is likely desired. These patterns should
+be adapted as needed.
