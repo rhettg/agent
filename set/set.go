@@ -8,7 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/rhettg/agent"
-	"github.com/rhettg/agent/functions"
+	"github.com/rhettg/agent/tools"
 	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
@@ -171,11 +171,11 @@ func (a *Set) Stop(ctx context.Context, arguments string) (string, error) {
 	return fmt.Sprintf("%s has left the chat", a.name), nil
 }
 
-func (a *Set) Functions() *functions.Functions {
-	fs := functions.New()
-	fs.Add("agent_start", StartHelp, StartSchema, a.Start)
-	fs.Add("agent_stop", StopHelp, StopSchema, a.Stop)
-	return fs
+func (a *Set) Tools() *tools.Tools {
+	ts := tools.New()
+	ts.Add("agent_start", StartHelp, StartSchema, a.Start)
+	ts.Add("agent_stop", StopHelp, StopSchema, a.Stop)
+	return ts
 }
 
 func New() *Set {

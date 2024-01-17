@@ -165,7 +165,30 @@ This can then be added to the agent configuration:
 a := agent.New(c, "gpt-4", agent.WithCheck(hasSecret))
 ```
 
-### Functions
+### Tools
+
+A core capability for building an Agent is providing tools. Tools allow the
+agent the perform actions autonomously.
+
+```go
+func hello() (string, error) {
+	return "Hello World", nil
+}
+
+// Empty parameters
+params := jsonschema.Definition{
+	Type:       "object",
+	Properties: map[string]jsonschema.Definition{},
+}
+
+ts := tools.New()
+ts.Add("hello", "receive a welcome message", params, hello)
+
+a := agent.New(c, agent.WithTools(ts))
+```
+
+Behind the scenes, `WithTools` middleware will intercept tool invocations and
+run the provided function as an agent Step.
 
 ### Vision
 

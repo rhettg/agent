@@ -1,4 +1,4 @@
-package functions
+package tools
 
 import (
 	"context"
@@ -14,25 +14,25 @@ var EmptyParameters = jsonschema.Definition{
 	Properties: map[string]jsonschema.Definition{},
 }
 
-func TestFunctionSet(t *testing.T) {
+func TestTools(t *testing.T) {
 	ctx := context.Background()
 
-	fs := New()
+	ts := New()
 
-	fs.Add("hello", "Say hello", EmptyParameters, func(ctx context.Context, args string) (string, error) {
+	ts.Add("hello", "Say hello", EmptyParameters, func(ctx context.Context, args string) (string, error) {
 		return "Hello world!", nil
 	})
 
-	msg, err := fs.call(ctx, "hello", "{}")
+	msg, err := ts.call(ctx, "hello", "{}")
 	require.NoError(t, err)
 
 	content, err := msg.Content(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "Hello world!", content)
 
-	r, err := fs.call(ctx, "invalid", "{}")
+	r, err := ts.call(ctx, "invalid", "{}")
 	rc, _ := r.Content(ctx)
-	assert.Equal(t, "function not found: invalid", rc)
+	assert.Equal(t, "tool not found: invalid", rc)
 	assert.NoError(t, err)
 }
 
@@ -40,12 +40,12 @@ func hello(ctx context.Context, args string) (string, error) {
 	return "Hello world!", nil
 }
 
-func TestFunctionSet_CompletionFunc(t *testing.T) {
+func TestTools_CompletionFunc(t *testing.T) {
 	ctx := context.Background()
 
-	fs := New()
+	ts := New()
 
-	fs.Add("hello", "say hello", EmptyParameters, func(ctx context.Context, args string) (string, error) {
+	ts.Add("hello", "say hello", EmptyParameters, func(ctx context.Context, args string) (string, error) {
 		resp, err := hello(ctx, args)
 		if err != nil {
 			return "", err
@@ -54,15 +54,15 @@ func TestFunctionSet_CompletionFunc(t *testing.T) {
 		return resp, nil
 	})
 
-	msg, err := fs.call(ctx, "hello", `{}`)
+	msg, err := ts.call(ctx, "hello", `{}`)
 	require.NoError(t, err)
 
 	content, err := msg.Content(ctx)
 	require.NoError(t, err)
 	assert.Contains(t, content, "Hello world")
 
-	msg, err = fs.call(ctx, "worldDomination", `{}`)
+	msg, err = ts.call(ctx, "worldDomination", `{}`)
 	require.NoError(t, err)
 	content, _ = msg.Content(ctx)
-	require.Contains(t, content, "function not found: worldDomination")
+	require.Contains(t, content, "tool not found: worldDomination")
 }

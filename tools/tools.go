@@ -1,4 +1,4 @@
-package functions
+package tools
 
 import (
 	"context"
@@ -7,12 +7,12 @@ import (
 	"github.com/rhettg/agent"
 )
 
-type Functions struct {
+type Tools struct {
 	fns  map[string]agent.Function
 	defs []agent.FunctionDef
 }
 
-func (f *Functions) Add(name, description string, parameters any, fn agent.Function) {
+func (f *Tools) Add(name, description string, parameters any, fn agent.Function) {
 	def := agent.FunctionDef{
 		Name:        name,
 		Description: description,
@@ -23,16 +23,16 @@ func (f *Functions) Add(name, description string, parameters any, fn agent.Funct
 	f.fns[name] = fn
 }
 
-func (f *Functions) AddFunctions(fs *Functions) {
+func (f *Tools) AddTools(fs *Tools) {
 	for _, def := range fs.defs {
 		f.Add(def.Name, def.Description, def.Parameters, f.fns[def.Name])
 	}
 }
 
-func (f *Functions) call(ctx context.Context, name, arguments string) (*agent.Message, error) {
+func (f *Tools) call(ctx context.Context, name, arguments string) (*agent.Message, error) {
 	fn, ok := f.fns[name]
 	if !ok {
-		m := agent.NewContentMessage(agent.RoleFunction, fmt.Sprintf("function not found: %s", name))
+		m := agent.NewContentMessage(agent.RoleFunction, fmt.Sprintf("tool not found: %s", name))
 		m.FunctionCallName = name
 		return m, nil
 	}
@@ -48,7 +48,7 @@ func (f *Functions) call(ctx context.Context, name, arguments string) (*agent.Me
 	return m, nil
 }
 
-func (f *Functions) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc {
+func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc {
 	return func(ctx context.Context, msgs []*agent.Message, fns []agent.FunctionDef) (*agent.Message, error) {
 		if len(msgs) > 0 {
 			lastMsg := msgs[len(msgs)-1]
@@ -65,20 +65,20 @@ func (f *Functions) CompletionFunc(nextStep agent.CompletionFunc) agent.Completi
 	}
 }
 
-func New() *Functions {
-	return &Functions{
+func New() *Tools {
+	return &Tools{
 		fns:  make(map[string]agent.Function),
 		defs: make([]agent.FunctionDef, 0),
 	}
 }
 
-func NewFunctionSetFromFunctionSet(fs *Functions) *Functions {
+func NewToolsFromTools(fs *Tools) *Tools {
 	nfs := New()
-	nfs.AddFunctions(fs)
+	nfs.AddTools(fs)
 
 	return nfs
 }
 
-func WithFunctions(f *Functions) agent.Option {
+func WithTools(f *Tools) agent.Option {
 	return agent.WithMiddleware(f.CompletionFunc)
 }

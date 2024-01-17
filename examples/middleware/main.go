@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/rhettg/agent"
-	"github.com/rhettg/agent/functions"
 	"github.com/rhettg/agent/provider/openaichat"
 	"github.com/rhettg/agent/set"
+	"github.com/rhettg/agent/tools"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -25,8 +25,8 @@ func main() {
 	p := openaichat.New(s, "gpt-4")
 
 	as := set.New()
-	fs := functions.New()
-	fs.AddFunctions(as.Functions())
+	ts := tools.New()
+	ts.AddTools(as.Tools())
 
 	// Adding middleware is like an onion, the first ones added will be closest
 	// to the destination provider (the API call itself.)
@@ -38,9 +38,9 @@ func main() {
 		// opporutnity to add or tag messages before this happens.
 		agent.WithFilter(limitMessagesFilter),
 
-		// Next add functions because they are one of the rare cases where we
+		// Next add tools because they are one of the rare cases where we
 		// intercept and directly handle completions.
-		functions.WithFunctions(fs),
+		tools.WithTools(ts),
 
 		// Next add our agent set because if we're talking to a sub-agent then
 		// we maybe do not want functions to be handled but rather handed to the
