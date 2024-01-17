@@ -141,7 +141,7 @@ func LimitMessagesFilter(max int) FilterFunc {
 This can then be added to the agent configuration:
 
 ```go
-a := agent.New(c, "gpt-4", agent.WithFilter(LimitMessagesFilter(5)))
+a := agent.New(c, agent.WithFilter(LimitMessagesFilter(5)))
 ```
 
 ### Checks
@@ -162,7 +162,7 @@ func hasSecret(ctx context.Context, msg *agent.Message) error {
 This can then be added to the agent configuration:
 
 ```go
-a := agent.New(c, "gpt-4", agent.WithCheck(hasSecret))
+a := agent.New(c, agent.WithCheck(hasSecret))
 ```
 
 ### Tools
@@ -210,13 +210,13 @@ An Agent Set allows an LLM to start a dialog with another LLM. It exposes two ne
 * `agent_stop` - stops an agent
 
 ```go
-s := set.New()
-s.Add("eyes", EyesAgentStartFunc())
+as := agentset.New()
+as.Add("eyes", EyesAgentStartFunc())
 
-fs := functions.New()
-fs.AddFunctions(a.Functions())
+ts := tools.New()
+ts.AddTools(as.Tools())
 
-a := agent.New(c, set.WithAgentSet(s))
+a := agent.New(c, set.WithAgentSet(as))
 ```
 
 ### Message Attributes

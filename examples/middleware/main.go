@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/rhettg/agent"
+	"github.com/rhettg/agent/agentset"
 	"github.com/rhettg/agent/provider/openaichat"
-	"github.com/rhettg/agent/set"
 	"github.com/rhettg/agent/tools"
 	"github.com/sashabaranov/go-openai"
 )
@@ -24,7 +24,7 @@ func main() {
 	s := openai.NewClient(apiKey)
 	p := openaichat.New(s, "gpt-4")
 
-	as := set.New()
+	as := agentset.New()
 	ts := tools.New()
 	ts.AddTools(as.Tools())
 
@@ -45,7 +45,7 @@ func main() {
 		// Next add our agent set because if we're talking to a sub-agent then
 		// we maybe do not want functions to be handled but rather handed to the
 		// sub-agent. If this isn't true, reverse these!
-		set.WithAgentSet(as),
+		agentset.WithAgentSet(as),
 
 		// Finally add checks because they are the last thing to run and verify
 		// any content in generated messages.

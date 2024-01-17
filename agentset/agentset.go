@@ -1,4 +1,4 @@
-package set
+package agentset
 
 import (
 	"context"
@@ -51,7 +51,7 @@ const (
 	stateWaiting
 )
 
-type Set struct {
+type AgentSet struct {
 	state          state
 	name           string
 	welcomeMsg     string
@@ -60,15 +60,15 @@ type Set struct {
 	agentFns map[string]startFunc
 }
 
-func (a *Set) Add(name string, f startFunc) {
+func (a *AgentSet) Add(name string, f startFunc) {
 	a.agentFns[name] = f
 }
 
-func (a *Set) Idle() bool {
+func (a *AgentSet) Idle() bool {
 	return a.state == stateIdle
 }
 
-func (a *Set) Start(ctx context.Context, arguments string) (string, error) {
+func (a *AgentSet) Start(ctx context.Context, arguments string) (string, error) {
 	if a.state != stateIdle {
 		return "Agent is already running", nil
 	}
@@ -96,7 +96,7 @@ func (a *Set) Start(ctx context.Context, arguments string) (string, error) {
 	return fmt.Sprintf("%s has entered the chat", a.name), nil
 }
 
-func (a *Set) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc {
+func (a *AgentSet) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc {
 	return func(ctx context.Context, msgs []*agent.Message, fns []agent.FunctionDef) (*agent.Message, error) {
 		slog.Debug("AgentSet.CompletionFunc", "agent", a.name, "agent_state", a.state)
 		switch a.state {
@@ -159,7 +159,7 @@ func (a *Set) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc
 	}
 }
 
-func (a *Set) Stop(ctx context.Context, arguments string) (string, error) {
+func (a *AgentSet) Stop(ctx context.Context, arguments string) (string, error) {
 	if a.name == "" {
 		return "No agent is currently running", nil
 	}
@@ -171,21 +171,21 @@ func (a *Set) Stop(ctx context.Context, arguments string) (string, error) {
 	return fmt.Sprintf("%s has left the chat", a.name), nil
 }
 
-func (a *Set) Tools() *tools.Tools {
+func (a *AgentSet) Tools() *tools.Tools {
 	ts := tools.New()
 	ts.Add("agent_start", StartHelp, StartSchema, a.Start)
 	ts.Add("agent_stop", StopHelp, StopSchema, a.Stop)
 	return ts
 }
 
-func New() *Set {
-	return &Set{
+func New() *AgentSet {
+	return &AgentSet{
 		state:    stateIdle,
 		agentFns: make(map[string]startFunc),
 	}
 }
 
-func NewFromSet(as *Set) *Set {
+func NewFromAgentSet(as *AgentSet) *AgentSet {
 	nas := New()
 	for name, fn := range as.agentFns {
 		nas.Add(name, fn)
@@ -194,6 +194,6 @@ func NewFromSet(as *Set) *Set {
 	return nas
 }
 
-func WithAgentSet(s *Set) agent.Option {
+func WithAgentSet(s *AgentSet) agent.Option {
 	return agent.WithMiddleware(s.CompletionFunc)
 }
