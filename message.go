@@ -82,6 +82,13 @@ func NewImageMessage(role Role, content string, imageName string, imageData []by
 	return m
 }
 
+func NewDynamicMessage(role Role, contentFn ContentFn) *Message {
+	m := newMessage()
+	m.Role = role
+	m.contentFn = contentFn
+	return m
+}
+
 func NewMessageFromMessage(m *Message) *Message {
 	nm := newMessage()
 	nm.Role = m.Role

@@ -56,15 +56,6 @@ func (a *Agent) Add(role Role, content string) *Agent {
 	return a
 }
 
-func (a *Agent) AddDynamic(role Role, contentFn ContentFn) *Agent {
-	msg := newMessage()
-	msg.Role = role
-	msg.contentFn = contentFn
-
-	a.messages = append(a.messages, msg)
-	return a
-}
-
 func (a *Agent) AddMessage(m *Message) *Agent {
 	a.messages = append(a.messages, m)
 	return a

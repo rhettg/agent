@@ -209,4 +209,31 @@ m.SetAttr("important", "true")
 
 This works well with filters.
 
+### Dynamic Messages
+
+The API for retrieving the content of a message is designed to support more than simply returning a string.
+
+```go
+	content, err := m.Content(context.Background())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error getting message content: %v\n", err)
+		os.Exit(1)
+	}
+```
+
+Messages support running functions to dynamically generate content.
+
+```go
+func generateSystem(ctx context.Context) (string, error) {
+    currentDate := time.Now().Format("2006-01-02")
+
+    content := fmt.Sprintf("System Message - Date: %s", currentDate)
+
+    return content, nil
+}
+
+msg := agent.NewDynamicMessage(agent.RoleSystem, generateSystem)
+a.AddMessage(msg)
+```
+
 ### Run patterns
