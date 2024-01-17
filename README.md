@@ -1,4 +1,4 @@
-# Agent - Go library for bulding LLM-based applications
+# Agent - Go library for building LLM-based applications
 
 ## Description
 
