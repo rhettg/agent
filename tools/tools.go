@@ -25,7 +25,7 @@ func (f *Tools) Add(name, description string, parameters any, fn agent.Tool) {
 
 func (f *Tools) AddTools(fs *Tools) {
 	for _, def := range fs.defs {
-		f.Add(def.Name, def.Description, def.Parameters, f.fns[def.Name])
+		f.Add(def.Name, def.Description, def.Parameters, fs.fns[def.Name])
 	}
 }
 
