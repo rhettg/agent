@@ -17,6 +17,12 @@ func WithMiddleware(m MiddlewareFunc) Option {
 	}
 }
 
+func WithMessages(msgs []*Message) Option {
+	return func(a *Agent) {
+		a.messages = append(a.messages, msgs...)
+	}
+}
+
 func New(c CompletionFunc, opts ...Option) *Agent {
 	a := &Agent{
 		completionFunc: c,
