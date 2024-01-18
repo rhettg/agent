@@ -117,22 +117,22 @@ func (p *provider) Completion(
 		pMsgs = append(pMsgs, pm)
 	}
 
-	tools := make([]openai.Tool, 0, len(tdfs))
+	// TODO: The Functions list is deprecated in favor of "tools", however tools
+	// supports multiple calls per message which will require some deeper
+	// changes.
+	fns := make([]openai.FunctionDefinition, 0, len(tdfs))
 	for _, fd := range tdfs {
-		tools = append(tools, openai.Tool{
-			Type: openai.ToolTypeFunction,
-			Function: openai.FunctionDefinition{
-				Name:        fd.Name,
-				Description: fd.Description,
-				Parameters:  fd.Parameters,
-			},
+		fns = append(fns, openai.FunctionDefinition{
+			Name:        fd.Name,
+			Description: fd.Description,
+			Parameters:  fd.Parameters,
 		})
 	}
 
 	params := openai.ChatCompletionRequest{
-		Model:    p.modelName,
-		Messages: pMsgs,
-		Tools:    tools,
+		Model:     p.modelName,
+		Messages:  pMsgs,
+		Functions: fns,
 	}
 
 	if p.maxTokens != 0 {
