@@ -9,8 +9,8 @@ import (
 	"path"
 	"time"
 
+	"github.com/openai/openai-go"
 	"github.com/rhettg/agent/provider/openaichat"
-	"github.com/sashabaranov/go-openai"
 )
 
 type SessionStore struct {
@@ -59,7 +59,7 @@ func (s *SessionStore) initPath() error {
 	return nil
 }
 
-func (s *SessionStore) SaveParams(p openai.ChatCompletionRequest) error {
+func (s *SessionStore) SaveParams(p openai.ChatCompletionNewParams) error {
 	err := s.initPath()
 	if err != nil {
 		return fmt.Errorf("failed to initialize data directory: %w", err)
@@ -84,7 +84,7 @@ func (s *SessionStore) SaveParams(p openai.ChatCompletionRequest) error {
 	return nil
 }
 
-func (s *SessionStore) SaveResponse(r openai.ChatCompletionResponse) error {
+func (s *SessionStore) SaveResponse(r *openai.ChatCompletion) error {
 	err := s.initPath()
 	if err != nil {
 		return fmt.Errorf("failed to initialize data directory: %w", err)
@@ -120,15 +120,10 @@ func (s *SessionStore) SaveError(responseErr error) error {
 		return fmt.Errorf("failed to generate filename: %w", err)
 	}
 
-	// Most error are probably openai.APIError, so let's make sure we get all the
-	// details saved out.
+	// Most errors are probably structured, so let's try to save them properly
 	var data []byte
-	if apiErr, ok := responseErr.(*openai.APIError); ok {
-		data, err = json.Marshal(apiErr)
-		if err != nil {
-			return fmt.Errorf("failed to marshal data: %w", err)
-		}
-	} else {
+	// Just save the error message for now, since the new SDK has different error types
+	{
 		jErr := struct {
 			Error string `json:"error"`
 		}{Error: responseErr.Error()}
@@ -148,8 +143,8 @@ func (s *SessionStore) SaveError(responseErr error) error {
 }
 
 func (s *SessionStore) Middleware(
-	ctx context.Context, params openai.ChatCompletionRequest, next openaichat.CreateCompletionFn,
-) (openai.ChatCompletionResponse, error) {
+	ctx context.Context, params openai.ChatCompletionNewParams, next openaichat.CreateCompletionFn,
+) (*openai.ChatCompletion, error) {
 	err := s.SaveParams(params)
 	if err != nil {
 		slog.Error("failed to save params to session store", "err", err)

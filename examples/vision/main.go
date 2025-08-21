@@ -7,13 +7,10 @@ import (
 
 	"github.com/rhettg/agent"
 	"github.com/rhettg/agent/provider/openaichat"
-	"github.com/sashabaranov/go-openai"
 )
 
 func main() {
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
-
-	p := openaichat.New(client, "gpt-4-vision-preview",
+	p := openaichat.New(os.Getenv("OPENAI_API_KEY"), "gpt-4-vision-preview",
 
 		// By default, gpt-4-vision-preview is configured with a very small
 		// default max tokens. Make it bigger.

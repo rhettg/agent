@@ -9,26 +9,25 @@ import (
 
 	"github.com/rhettg/agent"
 	"github.com/rhettg/agent/tools"
-	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
 var StartHelp = `Start a conversation with a new AI Agent`
 var StopHelp = `Stop current conversation with an AI Agent and resume talking to the user`
 
-var StartSchema = jsonschema.Definition{
-	Type: "object",
-	Properties: map[string]jsonschema.Definition{
-		"agent": {
-			Type:        "string",
-			Description: "name of an agent to start",
+var StartSchema = map[string]any{
+	"type": "object",
+	"properties": map[string]any{
+		"agent": map[string]any{
+			"type":        "string",
+			"description": "name of an agent to start",
 		},
 	},
-	Required: []string{"agent"},
+	"required": []string{"agent"},
 }
 
-var StopSchema = jsonschema.Definition{
-	Type:       "object",
-	Properties: map[string]jsonschema.Definition{},
+var StopSchema = map[string]any{
+	"type":       "object",
+	"properties": map[string]any{},
 }
 
 type startFunc func() (*agent.Agent, string)

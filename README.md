@@ -11,11 +11,12 @@ provide first-class support for tools and complex workflows.
 This can be thought of as a native-go approach to Python frameworks such as
 [langchain](https://github.com/langchain-ai/langchain).
 
+The library uses the [official OpenAI Go SDK](https://github.com/openai/openai-go) for OpenAI API integration.
+
 ## Usage
 
 ```go
-s := openai.NewClient("my-api-key")
-p := openaichat.New(s, "gpt-4")
+p := openaichat.New("my-api-key", "gpt-5-mini-2025-08-07")
 
 ts := tools.New()
 
@@ -24,7 +25,7 @@ a := agent.New(p,
 
 	// Next add functions because they are one of the rare cases where we
 	// intercept and directly handle completions.
-	functions.WithTools(ts),
+	tools.WithTools(ts),
 )
 
 a.Add(agent.RoleSystem, "You are a helpful assistant.")
@@ -85,8 +86,7 @@ slog.SetDefault(slog.New(&slogor.Handler{
 	TimeFormat: time.Stamp,
 }))
 
-s := openai.NewClient("my-api-key")
-p := openaichat.New(s, "gpt-4",
+p := openaichat.New("my-api-key", "gpt-4",
 	openaichat.WithMiddleware(openaichat.Logger(slog.Default())),
 )
 ```
@@ -95,8 +95,8 @@ While the implementation itself composes like an onion:
 
 ```go
 func Logger(l *slog.Logger) MiddlewareFunc {
-	return func(ctx context.Context, params openai.ChatCompletionRequest, next CreateCompletionFn) (
-		openai.ChatCompletionResponse, error) {
+	return func(ctx context.Context, params openai.ChatCompletionNewParams, next CreateCompletionFn) (
+		*openai.ChatCompletion, error) {
 		st := time.Now()
 
 		resp, err := next(ctx, params)
@@ -107,8 +107,8 @@ func Logger(l *slog.Logger) MiddlewareFunc {
 
 		l.LogAttrs(ctx, slog.LevelDebug, "executed completion",
 			slog.Duration("elapsed", time.Since(st)),
-			slog.Int("prompt_tokens", resp.Usage.PromptTokens),
-			slog.Int("completion_tokens", resp.Usage.CompletionTokens),
+			slog.Int("prompt_tokens", int(resp.Usage.PromptTokens)),
+			slog.Int("completion_tokens", int(resp.Usage.CompletionTokens)),
 			slog.String("finish_reason", string(resp.Choices[0].FinishReason)),
 		)
 		return resp, err
@@ -179,15 +179,15 @@ func hello() (string, error) {
 }
 
 // Empty parameters
-params := jsonschema.Definition{
-	Type:       "object",
-	Properties: map[string]jsonschema.Definition{},
+params := map[string]any{
+	"type":       "object",
+	"properties": map[string]any{},
 }
 
 ts := tools.New()
 ts.Add("hello", "receive a welcome message", params, hello)
 
-a := agent.New(c, agent.WithTools(ts))
+a := agent.New(c, tools.WithTools(ts))
 ```
 
 Behind the scenes, `WithTools` middleware will intercept tool invocations and
@@ -219,7 +219,7 @@ as.Add("eyes", EyesAgentStartFunc())
 ts := tools.New()
 ts.AddTools(as.Tools())
 
-a := agent.New(c, set.WithAgentSet(as))
+a := agent.New(c, agentset.WithAgentSet(as))
 ```
 
 This is an example of advanced control flow that is supported by the design of

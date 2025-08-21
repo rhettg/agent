@@ -6,11 +6,11 @@ import (
 
 	"log/slog"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go"
 )
 
 func Logger(l *slog.Logger) MiddlewareFunc {
-	return func(ctx context.Context, params openai.ChatCompletionRequest, next CreateCompletionFn) (openai.ChatCompletionResponse, error) {
+	return func(ctx context.Context, params openai.ChatCompletionNewParams, next CreateCompletionFn) (*openai.ChatCompletion, error) {
 		st := time.Now()
 		resp, err := next(ctx, params)
 		if err != nil {
@@ -20,8 +20,8 @@ func Logger(l *slog.Logger) MiddlewareFunc {
 
 		l.LogAttrs(ctx, slog.LevelDebug, "executed completion",
 			slog.Duration("elapsed", time.Since(st)),
-			slog.Int("prompt_tokens", resp.Usage.PromptTokens),
-			slog.Int("completion_tokens", resp.Usage.CompletionTokens),
+			slog.Int("prompt_tokens", int(resp.Usage.PromptTokens)),
+			slog.Int("completion_tokens", int(resp.Usage.CompletionTokens)),
 			slog.String("finish_reason", string(resp.Choices[0].FinishReason)),
 		)
 		return resp, err

@@ -4,14 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var EmptyParameters = jsonschema.Definition{
-	Type:       "object",
-	Properties: map[string]jsonschema.Definition{},
+var EmptyParameters = map[string]any{
+	"type":       "object",
+	"properties": map[string]any{},
 }
 
 func TestTools(t *testing.T) {

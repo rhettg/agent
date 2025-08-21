@@ -6,17 +6,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/shared"
 	"github.com/rhettg/agent"
-	"github.com/sashabaranov/go-openai"
 )
 
-type CreateCompletionFn func(context.Context, openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
-type MiddlewareFunc func(context.Context, openai.ChatCompletionRequest, CreateCompletionFn) (openai.ChatCompletionResponse, error)
+type CreateCompletionFn func(context.Context, openai.ChatCompletionNewParams, ...option.RequestOption) (*openai.ChatCompletion, error)
+type MiddlewareFunc func(context.Context, openai.ChatCompletionNewParams, CreateCompletionFn) (*openai.ChatCompletion, error)
 
-const defaultTemperature = float64(0.9)
+const defaultTemperature = float64(1.0)
 
 type provider struct {
-	client      *openai.Client
+	client      openai.Client
 	temperature float64
 	maxTokens   int
 	mw          []MiddlewareFunc
@@ -43,9 +45,14 @@ func WithMaxTokens(m int) func(p *provider) {
 	}
 }
 
-func New(c *openai.Client, modelName string, opts ...Option) agent.CompletionFunc {
+func New(apiKey string, modelName string, opts ...Option) agent.CompletionFunc {
+	client := openai.NewClient(option.WithAPIKey(apiKey))
+	return NewWithClient(client, modelName, opts...)
+}
+
+func NewWithClient(client openai.Client, modelName string, opts ...Option) agent.CompletionFunc {
 	p := &provider{
-		client:      c,
+		client:      client,
 		modelName:   modelName,
 		temperature: defaultTemperature,
 	}
@@ -60,91 +67,79 @@ func New(c *openai.Client, modelName string, opts ...Option) agent.CompletionFun
 func (p *provider) Completion(
 	ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef,
 ) (*agent.Message, error) {
-	pMsgs := make([]openai.ChatCompletionMessage, 0, len(msgs))
+	pMsgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
 	for _, m := range msgs {
 		c, err := m.Content(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get message content: %w", err)
 		}
 
-		content := make([]openai.ChatMessagePart, 0)
-		if c != "" {
-			content = append(content, openai.ChatMessagePart{
-				Type: openai.ChatMessagePartTypeText,
-				Text: c,
-			})
-		}
-
-		for _, img := range m.Images() {
-			mimeType := mimeType(img.Name)
-			imageURL := encodeImageURL(mimeType, img.Data)
-
-			ic := openai.ChatMessagePart{
-				Type: openai.ChatMessagePartTypeImageURL,
-				ImageURL: &openai.ChatMessageImageURL{
-					URL:    imageURL,
-					Detail: openai.ImageURLDetailAuto,
-				},
-			}
-
-			content = append(content, ic)
-		}
-
-		pm := openai.ChatCompletionMessage{
-			Role: string(m.Role),
-		}
-
-		if len(content) == 0 {
-			pm.Content = ""
-		} else if len(content) > 1 || content[0].Type != openai.ChatMessagePartTypeText {
-			pm.MultiContent = content
-		} else {
-			pm.Content = content[0].Text
-		}
-
-		if m.FunctionCallName != "" {
-			switch m.Role {
-			case agent.RoleFunction:
-				pm.Name = m.FunctionCallName
-			default:
-				pm.FunctionCall = &openai.FunctionCall{
-					Name:      m.FunctionCallName,
-					Arguments: m.FunctionCallArgs,
+		switch m.Role {
+		case agent.RoleSystem:
+			pMsgs = append(pMsgs, openai.SystemMessage(c))
+		case agent.RoleUser:
+			if len(m.Images()) > 0 {
+				// Handle multimodal content
+				content := make([]openai.ChatCompletionContentPartUnionParam, 0)
+				if c != "" {
+					content = append(content, openai.TextContentPart(c))
 				}
-			}
-		}
 
-		pMsgs = append(pMsgs, pm)
+				for _, img := range m.Images() {
+					mimeType := mimeType(img.Name)
+					imageURL := encodeImageURL(mimeType, img.Data)
+					content = append(content, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
+						URL: imageURL,
+					}))
+				}
+
+				pMsgs = append(pMsgs, openai.UserMessage(content))
+			} else {
+				pMsgs = append(pMsgs, openai.UserMessage(c))
+			}
+		case agent.RoleAssistant:
+			pMsgs = append(pMsgs, openai.AssistantMessage(c))
+		case agent.RoleFunction:
+			// For function responses, we need the tool call ID
+			// Using the function call name as the tool call ID for simplicity
+			pMsgs = append(pMsgs, openai.ToolMessage(c, "call_"+m.FunctionCallName))
+		}
 	}
 
-	tools := make([]openai.Tool, 0, len(tdfs))
+	tools := make([]openai.ChatCompletionToolParam, 0, len(tdfs))
 	for _, fd := range tdfs {
-		tools = append(tools, openai.Tool{
-			Type: openai.ToolTypeFunction,
-			Function: openai.FunctionDefinition{
+		tools = append(tools, openai.ChatCompletionToolParam{
+			Function: shared.FunctionDefinitionParam{
 				Name:        fd.Name,
-				Description: fd.Description,
-				Parameters:  fd.Parameters,
+				Description: openai.String(fd.Description),
+				Parameters:  shared.FunctionParameters(fd.Parameters.(map[string]any)),
 			},
 		})
 	}
 
-	params := openai.ChatCompletionRequest{
-		Model:    p.modelName,
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.modelName),
 		Messages: pMsgs,
-		Tools:    tools,
+	}
+
+	if len(tools) > 0 {
+		params.Tools = tools
 	}
 
 	if p.maxTokens != 0 {
-		params.MaxTokens = p.maxTokens
+		params.MaxTokens = openai.Int(int64(p.maxTokens))
+	}
+
+	if p.temperature != 0 {
+		params.Temperature = openai.Float(p.temperature)
 	}
 
 	// Assemble the middleware chain
-	c := p.client.CreateChatCompletion
+	c := p.client.Chat.Completions.New
 	for _, m := range p.mw {
 		next := c
 		fm := m
-		c = func(ctx context.Context, params openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+		c = func(ctx context.Context, params openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {
 			return fm(ctx, params, next)
 		}
 	}
@@ -161,9 +156,13 @@ func (p *provider) Completion(
 	rMsg := resp.Choices[0].Message
 	m := agent.NewContentMessage(agent.Role(rMsg.Role), rMsg.Content)
 
-	if rMsg.FunctionCall != nil {
-		m.FunctionCallName = rMsg.FunctionCall.Name
-		m.FunctionCallArgs = rMsg.FunctionCall.Arguments
+	if len(rMsg.ToolCalls) > 0 {
+		// Handle the first tool call
+		toolCall := rMsg.ToolCalls[0]
+		if toolCall.Function.Name != "" {
+			m.FunctionCallName = toolCall.Function.Name
+			m.FunctionCallArgs = toolCall.Function.Arguments
+		}
 	}
 
 	return m, nil

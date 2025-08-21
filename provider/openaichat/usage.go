@@ -3,7 +3,7 @@ package openaichat
 import (
 	"context"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go"
 )
 
 type Usage struct {
@@ -15,8 +15,8 @@ type Usage struct {
 }
 
 func (u *Usage) Middleware(
-	ctx context.Context, params openai.ChatCompletionRequest, next CreateCompletionFn,
-) (openai.ChatCompletionResponse, error) {
+	ctx context.Context, params openai.ChatCompletionNewParams, next CreateCompletionFn,
+) (*openai.ChatCompletion, error) {
 	resp, err := next(ctx, params)
 	if err != nil {
 		u.Errors++
@@ -27,8 +27,8 @@ func (u *Usage) Middleware(
 		u.Completions++
 	}
 
-	u.CompletionTokens += resp.Usage.CompletionTokens
-	u.PromptTokens += resp.Usage.PromptTokens
-	u.TotalTokens += resp.Usage.TotalTokens
+	u.CompletionTokens += int(resp.Usage.CompletionTokens)
+	u.PromptTokens += int(resp.Usage.PromptTokens)
+	u.TotalTokens += int(resp.Usage.TotalTokens)
 	return resp, err
 }
