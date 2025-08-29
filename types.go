@@ -10,7 +10,6 @@ const (
 	RoleSystem    = Role("system")
 	RoleUser      = Role("user")
 	RoleAssistant = Role("assistant")
-	RoleFunction  = Role("function") // Deprecated: use RoleTool instead
 	RoleTool      = Role("tool")
 )
 
