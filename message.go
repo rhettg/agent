@@ -25,6 +25,10 @@ type Message struct {
 	// overuse FunctionCallName for functions.
 	Name string
 
+	// Tool calling support
+	ToolCalls []ToolCall
+
+	// Deprecated: use ToolCalls instead
 	FunctionCallName string
 	FunctionCallArgs string
 
@@ -102,6 +106,8 @@ func NewMessageFromMessage(m *Message) *Message {
 	nm.Role = m.Role
 	nm.content = m.content
 	nm.Name = m.Name
+	nm.ToolCalls = make([]ToolCall, len(m.ToolCalls))
+	copy(nm.ToolCalls, m.ToolCalls)
 	nm.FunctionCallName = m.FunctionCallName
 	nm.FunctionCallArgs = m.FunctionCallArgs
 	nm.contentFn = m.contentFn
@@ -112,6 +118,42 @@ func NewMessageFromMessage(m *Message) *Message {
 		nm.attrs[k] = v
 	}
 	return nm
+}
+
+// HasToolCalls returns true if the message has tool calls (either new or legacy format)
+func (m *Message) HasToolCalls() bool {
+	return len(m.ToolCalls) > 0 || m.FunctionCallName != ""
+}
+
+// GetFirstToolCall returns the first tool call, checking new format first then legacy
+func (m *Message) GetFirstToolCall() *ToolCall {
+	if len(m.ToolCalls) > 0 {
+		return &m.ToolCalls[0]
+	}
+	if m.FunctionCallName != "" {
+		return &ToolCall{
+			ID:        "legacy_" + m.FunctionCallName,
+			Name:      m.FunctionCallName,
+			Arguments: m.FunctionCallArgs,
+		}
+	}
+	return nil
+}
+
+// SetLegacyToolCall sets the first tool call in both new and legacy formats for backward compatibility
+func (m *Message) SetLegacyToolCall(name, args string) {
+	m.FunctionCallName = name
+	m.FunctionCallArgs = args
+
+	// Also set in new format
+	if len(m.ToolCalls) == 0 {
+		m.ToolCalls = make([]ToolCall, 1)
+	}
+	m.ToolCalls[0] = ToolCall{
+		ID:        "legacy_" + name,
+		Name:      name,
+		Arguments: args,
+	}
 }
 
 func ExportMessagesToYAML(ctx context.Context, messages []*Message) (string, error) {

@@ -99,10 +99,13 @@ func (p *provider) Completion(
 			}
 		case agent.RoleAssistant:
 			pMsgs = append(pMsgs, openai.AssistantMessage(c))
-		case agent.RoleFunction:
-			// For function responses, we need the tool call ID
-			// Using the function call name as the tool call ID for simplicity
-			pMsgs = append(pMsgs, openai.ToolMessage(c, "call_"+m.FunctionCallName))
+		case agent.RoleFunction, agent.RoleTool:
+			// For tool responses, we need the tool call ID
+			toolID := "call_" + m.FunctionCallName
+			if toolCall := m.GetFirstToolCall(); toolCall != nil {
+				toolID = toolCall.ID
+			}
+			pMsgs = append(pMsgs, openai.ToolMessage(c, toolID))
 		}
 	}
 
@@ -157,11 +160,23 @@ func (p *provider) Completion(
 	m := agent.NewContentMessage(agent.Role(rMsg.Role), rMsg.Content)
 
 	if len(rMsg.ToolCalls) > 0 {
-		// Handle the first tool call
-		toolCall := rMsg.ToolCalls[0]
-		if toolCall.Function.Name != "" {
-			m.FunctionCallName = toolCall.Function.Name
-			m.FunctionCallArgs = toolCall.Function.Arguments
+		// Populate the new ToolCalls field with all tool calls
+		m.ToolCalls = make([]agent.ToolCall, len(rMsg.ToolCalls))
+		for i, tc := range rMsg.ToolCalls {
+			m.ToolCalls[i] = agent.ToolCall{
+				ID:        tc.ID,
+				Name:      tc.Function.Name,
+				Arguments: tc.Function.Arguments,
+			}
+		}
+		
+		// Maintain backward compatibility with legacy fields
+		if len(rMsg.ToolCalls) > 0 {
+			toolCall := rMsg.ToolCalls[0]
+			if toolCall.Function.Name != "" {
+				m.FunctionCallName = toolCall.Function.Name
+				m.FunctionCallArgs = toolCall.Function.Arguments
+			}
 		}
 	}
 

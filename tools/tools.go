@@ -32,8 +32,8 @@ func (f *Tools) AddTools(fs *Tools) {
 func (f *Tools) call(ctx context.Context, name, arguments string) (*agent.Message, error) {
 	fn, ok := f.fns[name]
 	if !ok {
-		m := agent.NewContentMessage(agent.RoleFunction, fmt.Sprintf("tool not found: %s", name))
-		m.FunctionCallName = name
+		m := agent.NewContentMessage(agent.RoleTool, fmt.Sprintf("tool not found: %s", name))
+		m.SetLegacyToolCall(name, arguments)
 		return m, nil
 	}
 
@@ -42,8 +42,8 @@ func (f *Tools) call(ctx context.Context, name, arguments string) (*agent.Messag
 		return nil, err
 	}
 
-	m := agent.NewContentMessage(agent.RoleFunction, resp)
-	m.FunctionCallName = name
+	m := agent.NewContentMessage(agent.RoleTool, resp)
+	m.SetLegacyToolCall(name, arguments)
 
 	return m, nil
 }
@@ -52,8 +52,10 @@ func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFu
 	return func(ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef) (*agent.Message, error) {
 		if len(msgs) > 0 {
 			lastMsg := msgs[len(msgs)-1]
-			if lastMsg.Role == agent.RoleAssistant && lastMsg.FunctionCallName != "" {
-				return f.call(ctx, lastMsg.FunctionCallName, lastMsg.FunctionCallArgs)
+			if lastMsg.Role == agent.RoleAssistant && lastMsg.HasToolCalls() {
+				if toolCall := lastMsg.GetFirstToolCall(); toolCall != nil {
+					return f.call(ctx, toolCall.Name, toolCall.Arguments)
+				}
 			}
 		}
 
