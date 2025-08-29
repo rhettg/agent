@@ -10,13 +10,19 @@ const (
 	RoleSystem    = Role("system")
 	RoleUser      = Role("user")
 	RoleAssistant = Role("assistant")
-	RoleFunction  = Role("function")
+	RoleTool      = Role("tool")
 )
 
 type CompletionFunc func(context.Context, []*Message, []ToolDef) (*Message, error)
 type MiddlewareFunc func(nextStep CompletionFunc) CompletionFunc
 
 type Tool func(context.Context, string) (string, error)
+
+type ToolCall struct {
+	ID        string
+	Name      string
+	Arguments string
+}
 
 type ToolDef struct {
 	Name        string

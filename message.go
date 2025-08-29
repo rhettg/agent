@@ -21,12 +21,12 @@ type Message struct {
 
 	imageData []Image
 
-	// TODO: add name concept which is part of openai api anyway. Might be useful, but also better to not
-	// overuse FunctionCallName for functions.
+	// TODO: add name concept which is part of openai api anyway. Might be useful.
 	Name string
 
-	FunctionCallName string
-	FunctionCallArgs string
+	// Tool calling support
+	ToolCalls []ToolCall  // Only for assistant messages
+	ToolCallID string     // Only for tool response messages
 
 	contentFn ContentFn
 	attrs     map[string]string
@@ -102,8 +102,9 @@ func NewMessageFromMessage(m *Message) *Message {
 	nm.Role = m.Role
 	nm.content = m.content
 	nm.Name = m.Name
-	nm.FunctionCallName = m.FunctionCallName
-	nm.FunctionCallArgs = m.FunctionCallArgs
+	nm.ToolCalls = make([]ToolCall, len(m.ToolCalls))
+	copy(nm.ToolCalls, m.ToolCalls)
+	nm.ToolCallID = m.ToolCallID
 	nm.contentFn = m.contentFn
 	nm.imageData = make([]Image, len(m.imageData))
 	copy(nm.imageData, m.imageData)
@@ -112,6 +113,19 @@ func NewMessageFromMessage(m *Message) *Message {
 		nm.attrs[k] = v
 	}
 	return nm
+}
+
+// HasToolCalls returns true if the message has tool calls
+func (m *Message) HasToolCalls() bool {
+	return len(m.ToolCalls) > 0
+}
+
+// GetFirstToolCall returns the first tool call
+func (m *Message) GetFirstToolCall() *ToolCall {
+	if len(m.ToolCalls) > 0 {
+		return &m.ToolCalls[0]
+	}
+	return nil
 }
 
 func ExportMessagesToYAML(ctx context.Context, messages []*Message) (string, error) {

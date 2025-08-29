@@ -98,11 +98,23 @@ func (p *provider) Completion(
 				pMsgs = append(pMsgs, openai.UserMessage(c))
 			}
 		case agent.RoleAssistant:
-			pMsgs = append(pMsgs, openai.AssistantMessage(c))
-		case agent.RoleFunction:
-			// For function responses, we need the tool call ID
-			// Using the function call name as the tool call ID for simplicity
-			pMsgs = append(pMsgs, openai.ToolMessage(c, "call_"+m.FunctionCallName))
+			aMsg := openai.AssistantMessage(c)
+			aMsg.OfAssistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallParam, len(m.ToolCalls))
+			for i, tc := range m.ToolCalls {
+				aMsg.OfAssistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallParam{
+					ID: tc.ID,
+					Function: openai.ChatCompletionMessageToolCallFunctionParam{
+						Name:      tc.Name,
+						Arguments: tc.Arguments,
+					},
+					Type: "function",
+				}
+			}
+			pMsgs = append(pMsgs, aMsg)
+		case agent.RoleFunction, agent.RoleTool:
+			// For tool responses, we need the tool call ID
+			toolID := m.ToolCallID
+			pMsgs = append(pMsgs, openai.ToolMessage(c, toolID))
 		}
 	}
 
@@ -157,11 +169,14 @@ func (p *provider) Completion(
 	m := agent.NewContentMessage(agent.Role(rMsg.Role), rMsg.Content)
 
 	if len(rMsg.ToolCalls) > 0 {
-		// Handle the first tool call
-		toolCall := rMsg.ToolCalls[0]
-		if toolCall.Function.Name != "" {
-			m.FunctionCallName = toolCall.Function.Name
-			m.FunctionCallArgs = toolCall.Function.Arguments
+		// Populate the new ToolCalls field with all tool calls
+		m.ToolCalls = make([]agent.ToolCall, len(rMsg.ToolCalls))
+		for i, tc := range rMsg.ToolCalls {
+			m.ToolCalls[i] = agent.ToolCall{
+				ID:        tc.ID,
+				Name:      tc.Function.Name,
+				Arguments: tc.Function.Arguments,
+			}
 		}
 	}
 

@@ -56,7 +56,7 @@ func StopOnReply(ctx context.Context, m *Message) error {
 	if m == nil {
 		return nil
 	}
-	if m.Role == RoleAssistant && m.FunctionCallName == "" {
+	if m.Role == RoleAssistant && !m.HasToolCalls() {
 		m.Tag(StopTag)
 	}
 	return nil

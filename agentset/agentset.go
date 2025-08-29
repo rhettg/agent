@@ -111,7 +111,7 @@ func (a *AgentSet) CompletionFunc(nextStep agent.CompletionFunc) agent.Completio
 		case stateWaiting:
 			lastMsg := msgs[len(msgs)-1]
 			if lastMsg.Role == agent.RoleAssistant {
-				if lastMsg.FunctionCallName == "" {
+				if !lastMsg.HasToolCalls() {
 					content, err := lastMsg.Content(ctx)
 					if err != nil {
 						return nil, err
@@ -120,7 +120,7 @@ func (a *AgentSet) CompletionFunc(nextStep agent.CompletionFunc) agent.Completio
 					a.agentAssistant.Add(agent.RoleUser, content)
 					a.state = stateRunning
 					slog.Debug("agent set state change", "agent", a.name, "state", a.state)
-				} else if lastMsg.FunctionCallName != "agent_stop" {
+				} else if toolCall := lastMsg.GetFirstToolCall(); toolCall != nil && toolCall.Name != "agent_stop" {
 					// When an agent is running we only allow the caller to call stop.
 					// We need this special case handling because the often the
 					// calling agent becomes confused *really* wanting to call
@@ -143,7 +143,7 @@ func (a *AgentSet) CompletionFunc(nextStep agent.CompletionFunc) agent.Completio
 				return nil, fmt.Errorf("error running agent: %w", err)
 			}
 
-			if m.Role == agent.RoleAssistant && m.FunctionCallName == "" {
+			if m.Role == agent.RoleAssistant && !m.HasToolCalls() {
 				rContent, _ := m.Content(ctx)
 				a.state = stateWaiting
 				slog.Debug("agent set state change", "agent", a.name, "state", a.state)
