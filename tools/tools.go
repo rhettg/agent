@@ -29,34 +29,32 @@ func (f *Tools) AddTools(fs *Tools) {
 	}
 }
 
-func (f *Tools) call(ctx context.Context, name, arguments string) (*agent.Message, error) {
-	fn, ok := f.fns[name]
+func (f *Tools) call(ctx context.Context, toolCall *agent.ToolCall) (*agent.Message, error) {
+	fn, ok := f.fns[toolCall.Name]
 	if !ok {
-		m := agent.NewContentMessage(agent.RoleTool, fmt.Sprintf("tool not found: %s", name))
-		m.SetLegacyToolCall(name, arguments)
+		m := agent.NewContentMessage(agent.RoleTool, fmt.Sprintf("tool not found: %s", toolCall.Name))
+		m.ToolCallID = toolCall.ID
+		m.SetLegacyToolCall(toolCall.Name, toolCall.Arguments)
 		return m, nil
 	}
 
-	resp, err := fn(ctx, arguments)
+	resp, err := fn(ctx, toolCall.Arguments)
 	if err != nil {
 		return nil, err
 	}
 
 	m := agent.NewContentMessage(agent.RoleTool, resp)
-	m.SetLegacyToolCall(name, arguments)
+	m.ToolCallID = toolCall.ID
+	m.SetLegacyToolCall(toolCall.Name, toolCall.Arguments)
 
 	return m, nil
 }
 
 func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc {
 	return func(ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef) (*agent.Message, error) {
-		if len(msgs) > 0 {
-			lastMsg := msgs[len(msgs)-1]
-			if lastMsg.Role == agent.RoleAssistant && lastMsg.HasToolCalls() {
-				if toolCall := lastMsg.GetFirstToolCall(); toolCall != nil {
-					return f.call(ctx, toolCall.Name, toolCall.Arguments)
-				}
-			}
+		// Find the first unexecuted tool call
+		if toolCall := f.findUnexecutedToolCall(msgs); toolCall != nil {
+			return f.call(ctx, toolCall)
 		}
 
 		nfns := make([]agent.ToolDef, 0, len(tdfs)+len(f.defs))
@@ -65,6 +63,38 @@ func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFu
 
 		return nextStep(ctx, msgs, nfns)
 	}
+}
+
+// findUnexecutedToolCall searches through the conversation to find tool calls that haven't been executed yet
+func (f *Tools) findUnexecutedToolCall(msgs []*agent.Message) *agent.ToolCall {
+	// Track executed tool calls by their IDs
+	executedCallIDs := make(map[string]bool)
+	
+	// First pass: collect all executed tool call IDs
+	for _, msg := range msgs {
+		if msg.Role == agent.RoleTool {
+			if msg.ToolCallID != "" {
+				executedCallIDs[msg.ToolCallID] = true
+			}
+			// Legacy support - use name as ID if no proper ID exists
+			if msg.FunctionCallName != "" {
+				executedCallIDs["legacy_"+msg.FunctionCallName] = true
+			}
+		}
+	}
+	
+	// Second pass: find unexecuted tool calls
+	for _, msg := range msgs {
+		if msg.Role == agent.RoleAssistant && msg.HasToolCalls() {
+			for _, toolCall := range msg.ToolCalls {
+				if !executedCallIDs[toolCall.ID] {
+					return &toolCall
+				}
+			}
+		}
+	}
+	
+	return nil
 }
 
 func New() *Tools {

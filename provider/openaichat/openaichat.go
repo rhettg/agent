@@ -101,9 +101,10 @@ func (p *provider) Completion(
 			pMsgs = append(pMsgs, openai.AssistantMessage(c))
 		case agent.RoleFunction, agent.RoleTool:
 			// For tool responses, we need the tool call ID
-			toolID := "call_" + m.FunctionCallName
-			if toolCall := m.GetFirstToolCall(); toolCall != nil {
-				toolID = toolCall.ID
+			toolID := m.ToolCallID
+			if toolID == "" {
+				// Legacy fallback
+				toolID = "call_" + m.FunctionCallName
 			}
 			pMsgs = append(pMsgs, openai.ToolMessage(c, toolID))
 		}

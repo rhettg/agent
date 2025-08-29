@@ -26,7 +26,8 @@ type Message struct {
 	Name string
 
 	// Tool calling support
-	ToolCalls []ToolCall
+	ToolCalls []ToolCall  // Only for assistant messages
+	ToolCallID string     // Only for tool response messages
 
 	// Deprecated: use ToolCalls instead
 	FunctionCallName string
