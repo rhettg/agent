@@ -102,10 +102,6 @@ func (p *provider) Completion(
 		case agent.RoleFunction, agent.RoleTool:
 			// For tool responses, we need the tool call ID
 			toolID := m.ToolCallID
-			if toolID == "" {
-				// Legacy fallback
-				toolID = "call_" + m.FunctionCallName
-			}
 			pMsgs = append(pMsgs, openai.ToolMessage(c, toolID))
 		}
 	}
@@ -171,14 +167,7 @@ func (p *provider) Completion(
 			}
 		}
 		
-		// Maintain backward compatibility with legacy fields
-		if len(rMsg.ToolCalls) > 0 {
-			toolCall := rMsg.ToolCalls[0]
-			if toolCall.Function.Name != "" {
-				m.FunctionCallName = toolCall.Function.Name
-				m.FunctionCallArgs = toolCall.Function.Arguments
-			}
-		}
+		// Tool calls are already populated above
 	}
 
 	return m, nil

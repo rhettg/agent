@@ -21,17 +21,12 @@ type Message struct {
 
 	imageData []Image
 
-	// TODO: add name concept which is part of openai api anyway. Might be useful, but also better to not
-	// overuse FunctionCallName for functions.
+	// TODO: add name concept which is part of openai api anyway. Might be useful.
 	Name string
 
 	// Tool calling support
 	ToolCalls []ToolCall  // Only for assistant messages
 	ToolCallID string     // Only for tool response messages
-
-	// Deprecated: use ToolCalls instead
-	FunctionCallName string
-	FunctionCallArgs string
 
 	contentFn ContentFn
 	attrs     map[string]string
@@ -109,8 +104,7 @@ func NewMessageFromMessage(m *Message) *Message {
 	nm.Name = m.Name
 	nm.ToolCalls = make([]ToolCall, len(m.ToolCalls))
 	copy(nm.ToolCalls, m.ToolCalls)
-	nm.FunctionCallName = m.FunctionCallName
-	nm.FunctionCallArgs = m.FunctionCallArgs
+	nm.ToolCallID = m.ToolCallID
 	nm.contentFn = m.contentFn
 	nm.imageData = make([]Image, len(m.imageData))
 	copy(nm.imageData, m.imageData)
@@ -121,40 +115,17 @@ func NewMessageFromMessage(m *Message) *Message {
 	return nm
 }
 
-// HasToolCalls returns true if the message has tool calls (either new or legacy format)
+// HasToolCalls returns true if the message has tool calls
 func (m *Message) HasToolCalls() bool {
-	return len(m.ToolCalls) > 0 || m.FunctionCallName != ""
+	return len(m.ToolCalls) > 0
 }
 
-// GetFirstToolCall returns the first tool call, checking new format first then legacy
+// GetFirstToolCall returns the first tool call
 func (m *Message) GetFirstToolCall() *ToolCall {
 	if len(m.ToolCalls) > 0 {
 		return &m.ToolCalls[0]
 	}
-	if m.FunctionCallName != "" {
-		return &ToolCall{
-			ID:        "legacy_" + m.FunctionCallName,
-			Name:      m.FunctionCallName,
-			Arguments: m.FunctionCallArgs,
-		}
-	}
 	return nil
-}
-
-// SetLegacyToolCall sets the first tool call in both new and legacy formats for backward compatibility
-func (m *Message) SetLegacyToolCall(name, args string) {
-	m.FunctionCallName = name
-	m.FunctionCallArgs = args
-
-	// Also set in new format
-	if len(m.ToolCalls) == 0 {
-		m.ToolCalls = make([]ToolCall, 1)
-	}
-	m.ToolCalls[0] = ToolCall{
-		ID:        "legacy_" + name,
-		Name:      name,
-		Arguments: args,
-	}
 }
 
 func ExportMessagesToYAML(ctx context.Context, messages []*Message) (string, error) {

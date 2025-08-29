@@ -34,7 +34,6 @@ func (f *Tools) call(ctx context.Context, toolCall *agent.ToolCall) (*agent.Mess
 	if !ok {
 		m := agent.NewContentMessage(agent.RoleTool, fmt.Sprintf("tool not found: %s", toolCall.Name))
 		m.ToolCallID = toolCall.ID
-		m.SetLegacyToolCall(toolCall.Name, toolCall.Arguments)
 		return m, nil
 	}
 
@@ -45,7 +44,6 @@ func (f *Tools) call(ctx context.Context, toolCall *agent.ToolCall) (*agent.Mess
 
 	m := agent.NewContentMessage(agent.RoleTool, resp)
 	m.ToolCallID = toolCall.ID
-	m.SetLegacyToolCall(toolCall.Name, toolCall.Arguments)
 
 	return m, nil
 }
@@ -72,14 +70,8 @@ func (f *Tools) findUnexecutedToolCall(msgs []*agent.Message) *agent.ToolCall {
 	
 	// First pass: collect all executed tool call IDs
 	for _, msg := range msgs {
-		if msg.Role == agent.RoleTool {
-			if msg.ToolCallID != "" {
-				executedCallIDs[msg.ToolCallID] = true
-			}
-			// Legacy support - use name as ID if no proper ID exists
-			if msg.FunctionCallName != "" {
-				executedCallIDs["legacy_"+msg.FunctionCallName] = true
-			}
+		if msg.Role == agent.RoleTool && msg.ToolCallID != "" {
+			executedCallIDs[msg.ToolCallID] = true
 		}
 	}
 	

@@ -29,10 +29,12 @@ func EstimateTokens(ctx context.Context, t tokenizer.Codec, m *Message) (int, er
 		Content: content,
 	}
 
-	if m.FunctionCallName != "" {
+	// Handle tool calls for token counting
+	if len(m.ToolCalls) > 0 {
+		// Use the first tool call for legacy compatibility in token counting
 		cm.FunctionCall = &functionCall{
-			Name:      m.FunctionCallName,
-			Arguments: m.FunctionCallArgs,
+			Name:      m.ToolCalls[0].Name,
+			Arguments: m.ToolCalls[0].Arguments,
 		}
 	}
 
