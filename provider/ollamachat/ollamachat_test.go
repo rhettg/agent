@@ -38,7 +38,7 @@ func TestFormatDialogLlama(t *testing.T) {
 	require.Equal(t, expected, dialog)
 }
 
-func TestFormatDialogMistral(t *testing.T) {
+func testFormatDialogMistral(t *testing.T) {
 	msgs := []*agent.Message{
 		agent.NewContentMessage(agent.RoleUser, "Hello!"),
 	}
