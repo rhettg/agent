@@ -111,7 +111,7 @@ func (p *provider) Completion(
 				}
 			}
 			pMsgs = append(pMsgs, aMsg)
-		case agent.RoleFunction, agent.RoleTool:
+		case agent.RoleTool:
 			// For tool responses, we need the tool call ID
 			toolID := m.ToolCallID
 			pMsgs = append(pMsgs, openai.ToolMessage(c, toolID))
