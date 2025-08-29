@@ -193,6 +193,40 @@ a := agent.New(c, tools.WithTools(ts))
 Behind the scenes, `WithTools` middleware will intercept tool invocations and
 run the provided function as an agent step.
 
+## Streaming
+
+The library supports real-time streaming of responses from the LLM. This allows you to receive and process content as it's generated, rather than waiting for the complete response.
+
+```go
+// Define a callback function to handle streaming deltas
+printDeltas := func(ctx context.Context, delta openaichat.MessageDelta) {
+	if delta.Content != "" {
+		fmt.Printf("Content: %s", delta.Content)
+	}
+	if delta.ToolCallID != "" {
+		fmt.Printf("Tool Call: %s(%s)\n", delta.ToolCallName, delta.ToolCallArguments)
+	}
+}
+
+// Configure the provider with streaming
+p := openaichat.New(apiKey, "gpt-5-mini-2025-08-07", 
+	openaichat.WithMessageDeltaFunc(printDeltas))
+
+a := agent.New(p)
+a.Add(agent.RoleSystem, "You are a helpful assistant.")
+a.Add(agent.RoleUser, "Tell me a story.")
+
+// The deltaFunc will be called for each chunk as it arrives
+r, err := a.Step(context.Background())
+```
+
+The `MessageDelta` contains:
+- `Content`: Incremental text content
+- `ToolCallID`, `ToolCallName`, `ToolCallArguments`: Tool call information as it streams
+
+Streaming works transparently with all middleware - the final response is still a complete `Message` object that your application logic can use normally.
+
+
 ### Vision
 
 Messages can include image data:

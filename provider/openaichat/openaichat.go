@@ -18,12 +18,23 @@ type MiddlewareFunc func(context.Context, openai.ChatCompletionNewParams, Create
 const defaultTemperature = float64(1.0)
 
 type provider struct {
-	client      openai.Client
-	temperature float64
-	maxTokens   int
-	mw          []MiddlewareFunc
-	modelName   string
+	client           openai.Client
+	temperature      float64
+	maxTokens        int
+	mw               []MiddlewareFunc
+	modelName        string
+	messageDeltaFunc MessageDeltaFunc
 }
+
+type MessageDelta struct {
+	Role              string
+	Content           string
+	ToolCallID        string
+	ToolCallName      string
+	ToolCallArguments string
+}
+
+type MessageDeltaFunc func(ctx context.Context, delta MessageDelta)
 
 type Option func(p *provider)
 
@@ -45,6 +56,12 @@ func WithMaxTokens(m int) func(p *provider) {
 	}
 }
 
+func WithMessageDeltaFunc(f MessageDeltaFunc) func(p *provider) {
+	return func(p *provider) {
+		p.messageDeltaFunc = f
+	}
+}
+
 func New(apiKey string, modelName string, opts ...Option) agent.CompletionFunc {
 	client := openai.NewClient(option.WithAPIKey(apiKey))
 	return NewWithClient(client, modelName, opts...)
@@ -62,6 +79,132 @@ func NewWithClient(client openai.Client, modelName string, opts ...Option) agent
 	}
 
 	return p.Completion
+}
+
+func (p *provider) stream(ctx context.Context, params openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {
+	stream := p.client.Chat.Completions.NewStreaming(ctx, params, opts...)
+	defer stream.Close()
+
+	// Initialize result structure
+	result := &openai.ChatCompletion{
+		ID:      "",
+		Object:  "chat.completion",
+		Model:   string(params.Model),
+		Created: 0,
+		Choices: []openai.ChatCompletionChoice{{
+			Index: 0,
+			Message: openai.ChatCompletionMessage{
+				Role:      "assistant",
+				Content:   "",
+				ToolCalls: []openai.ChatCompletionMessageToolCallUnion{},
+			},
+			FinishReason: "",
+		}},
+		Usage: openai.CompletionUsage{},
+	}
+
+	// Use strings.Builder for efficient string concatenation
+	var contentBuilder strings.Builder
+	toolCallArgBuilders := make(map[int]*strings.Builder)
+
+	for stream.Next() {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		evt := stream.Current()
+
+		// Set metadata from first event
+		if result.ID == "" {
+			result.ID = evt.ID
+			result.Created = evt.Created
+		}
+
+		if len(evt.Choices) > 0 {
+			delta := evt.Choices[0].Delta
+			choice := &result.Choices[0]
+
+			// Accumulate content
+			if delta.Content != "" {
+				if p.messageDeltaFunc != nil {
+					md := MessageDelta{
+						Role:    delta.Role,
+						Content: delta.Content,
+					}
+					p.messageDeltaFunc(ctx, md)
+				}
+				contentBuilder.WriteString(delta.Content)
+			}
+
+			// Handle tool calls
+			if len(delta.ToolCalls) > 0 {
+				for _, toolCall := range delta.ToolCalls {
+					// Extend tool calls array if needed
+					for len(choice.Message.ToolCalls) <= int(toolCall.Index) {
+						choice.Message.ToolCalls = append(choice.Message.ToolCalls, openai.ChatCompletionMessageToolCallUnion{})
+					}
+
+					tc := &choice.Message.ToolCalls[toolCall.Index]
+					if toolCall.ID != "" {
+						tc.ID = toolCall.ID
+					}
+					if toolCall.Type != "" {
+						tc.Type = toolCall.Type
+					}
+					if toolCall.Function.Name != "" {
+						tc.Function.Name = toolCall.Function.Name
+					}
+					if toolCall.Function.Arguments != "" {
+						if p.messageDeltaFunc != nil {
+							md := MessageDelta{
+								ToolCallID:        toolCall.ID,
+								ToolCallName:      toolCall.Function.Name,
+								ToolCallArguments: toolCall.Function.Arguments,
+							}
+							p.messageDeltaFunc(ctx, md)
+						}
+
+						// Get or create builder for this tool call index
+						builder, exists := toolCallArgBuilders[int(toolCall.Index)]
+						if !exists {
+							builder = &strings.Builder{}
+							toolCallArgBuilders[int(toolCall.Index)] = builder
+						}
+						builder.WriteString(toolCall.Function.Arguments)
+					}
+				}
+			}
+
+			// Set finish reason
+			if evt.Choices[0].FinishReason != "" {
+				choice.FinishReason = evt.Choices[0].FinishReason
+			}
+		}
+
+		// Set usage if available (check if Usage has values)
+		if evt.Usage.PromptTokens != 0 || evt.Usage.CompletionTokens != 0 || evt.Usage.TotalTokens != 0 {
+			result.Usage = evt.Usage
+		}
+	}
+
+	if err := stream.Err(); err != nil {
+		return nil, err
+	}
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	// Set final content from builder
+	result.Choices[0].Message.Content = contentBuilder.String()
+
+	// Set final tool call arguments from builders
+	for i, tc := range result.Choices[0].Message.ToolCalls {
+		if builder, exists := toolCallArgBuilders[i]; exists {
+			tc.Function.Arguments = builder.String()
+		}
+	}
+
+	return result, nil
 }
 
 func (p *provider) Completion(
@@ -151,7 +294,7 @@ func (p *provider) Completion(
 	}
 
 	// Assemble the middleware chain
-	c := p.client.Chat.Completions.New
+	c := p.stream
 	for _, m := range p.mw {
 		next := c
 		fm := m

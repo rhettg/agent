@@ -20,7 +20,14 @@ func main() {
 		log.Fatal("OPENAI_API_KEY environment variable not set")
 	}
 
-	p := openaichat.New(apiKey, "gpt-5-mini-2025-08-07")
+	// Stream the output to stdout as it is generated
+	deltaFunc := func(ctx context.Context, delta openaichat.MessageDelta) {
+		if delta.Content != "" {
+			fmt.Print(delta.Content)
+		}
+	}
+
+	p := openaichat.New(apiKey, "gpt-5-mini-2025-08-07", openaichat.WithMessageDeltaFunc(deltaFunc))
 
 	as := agentset.New()
 	ts := tools.New()
@@ -53,17 +60,11 @@ func main() {
 	a.Add(agent.RoleSystem, "You are a helpful assistant.")
 	a.Add(agent.RoleUser, "Are you alive?")
 
-	r, err := a.Step(context.Background())
+	_, err := a.Step(context.Background())
 	if err != nil {
 		log.Fatalf("error from Agent: %v", err)
 	}
-
-	c, err := r.Content(context.Background())
-	if err != nil {
-		log.Fatalf("error from Message: %v", err)
-	}
-
-	fmt.Println(c)
+	fmt.Println()
 }
 
 func limitMessagesFilter(ctx context.Context, msgs []*agent.Message) ([]*agent.Message, error) {
