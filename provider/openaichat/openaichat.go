@@ -98,7 +98,19 @@ func (p *provider) Completion(
 				pMsgs = append(pMsgs, openai.UserMessage(c))
 			}
 		case agent.RoleAssistant:
-			pMsgs = append(pMsgs, openai.AssistantMessage(c))
+			aMsg := openai.AssistantMessage(c)
+			aMsg.OfAssistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallParam, len(m.ToolCalls))
+			for i, tc := range m.ToolCalls {
+				aMsg.OfAssistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallParam{
+					ID: tc.ID,
+					Function: openai.ChatCompletionMessageToolCallFunctionParam{
+						Name:      tc.Name,
+						Arguments: tc.Arguments,
+					},
+					Type: "function",
+				}
+			}
+			pMsgs = append(pMsgs, aMsg)
 		case agent.RoleFunction, agent.RoleTool:
 			// For tool responses, we need the tool call ID
 			toolID := m.ToolCallID
@@ -166,8 +178,6 @@ func (p *provider) Completion(
 				Arguments: tc.Function.Arguments,
 			}
 		}
-		
-		// Tool calls are already populated above
 	}
 
 	return m, nil
