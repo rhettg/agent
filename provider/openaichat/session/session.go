@@ -9,7 +9,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v2"
 	"github.com/rhettg/agent/provider/openaichat"
 )
 

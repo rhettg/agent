@@ -6,7 +6,7 @@ import (
 
 	"log/slog"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v2"
 )
 
 func Logger(l *slog.Logger) MiddlewareFunc {

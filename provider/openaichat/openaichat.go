@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/shared"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v2/shared"
 	"github.com/rhettg/agent"
 )
 
@@ -99,15 +99,17 @@ func (p *provider) Completion(
 			}
 		case agent.RoleAssistant:
 			aMsg := openai.AssistantMessage(c)
-			aMsg.OfAssistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallParam, len(m.ToolCalls))
+			aMsg.OfAssistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnionParam, len(m.ToolCalls))
 			for i, tc := range m.ToolCalls {
-				aMsg.OfAssistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallParam{
-					ID: tc.ID,
-					Function: openai.ChatCompletionMessageToolCallFunctionParam{
-						Name:      tc.Name,
-						Arguments: tc.Arguments,
+				aMsg.OfAssistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallUnionParam{
+					OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+						ID: tc.ID,
+						Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+							Name:      tc.Name,
+							Arguments: tc.Arguments,
+						},
+						Type: "function",
 					},
-					Type: "function",
 				}
 			}
 			pMsgs = append(pMsgs, aMsg)
@@ -118,13 +120,15 @@ func (p *provider) Completion(
 		}
 	}
 
-	tools := make([]openai.ChatCompletionToolParam, 0, len(tdfs))
+	tools := make([]openai.ChatCompletionToolUnionParam, 0, len(tdfs))
 	for _, fd := range tdfs {
-		tools = append(tools, openai.ChatCompletionToolParam{
-			Function: shared.FunctionDefinitionParam{
-				Name:        fd.Name,
-				Description: openai.String(fd.Description),
-				Parameters:  shared.FunctionParameters(fd.Parameters.(map[string]any)),
+		tools = append(tools, openai.ChatCompletionToolUnionParam{
+			OfFunction: &openai.ChatCompletionFunctionToolParam{
+				Function: shared.FunctionDefinitionParam{
+					Name:        fd.Name,
+					Description: openai.String(fd.Description),
+					Parameters:  shared.FunctionParameters(fd.Parameters.(map[string]any)),
+				},
 			},
 		})
 	}

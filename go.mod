@@ -5,6 +5,7 @@ go 1.23.0
 require (
 	github.com/jmorganca/ollama v0.1.30-rc4
 	github.com/openai/openai-go v1.12.0
+	github.com/openai/openai-go/v2 v2.1.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tiktoken-go/tokenizer v0.7.0
 	gopkg.in/yaml.v2 v2.4.0

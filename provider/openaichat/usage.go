@@ -3,7 +3,7 @@ package openaichat
 import (
 	"context"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v2"
 )
 
 type Usage struct {
