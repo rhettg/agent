@@ -286,6 +286,8 @@ Reasoning is preserved through message copying and middleware processing, allowi
 
 **Note**: The Responses API provider is currently a placeholder implementation waiting for official SDK support. Once OpenAI's Go SDK adds Responses API support, this provider will work seamlessly.
 
+**Streaming**: Streaming is not yet implemented for the Responses API provider. Using `WithMessageDeltaFunc` will cause completion requests to return an error until SDK support is available.
+
 See [example](./examples/responses/main.go)
 
 ### Vision

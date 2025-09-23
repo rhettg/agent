@@ -51,6 +51,10 @@ func WithMaxTokens(m int) Option {
 	}
 }
 
+// WithMessageDeltaFunc sets a callback for streaming message deltas.
+// WARNING: Streaming is not yet implemented for the Responses API provider.
+// Setting this option will cause all completion requests to return an error
+// until OpenAI's Go SDK adds Responses API streaming support.
 func WithMessageDeltaFunc(f MessageDeltaFunc) Option {
 	return func(p *provider) {
 		p.messageDeltaFunc = f
