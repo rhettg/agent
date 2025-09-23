@@ -90,21 +90,9 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 			
 			items = append(items, msgItem)
 			
-			// Add reasoning if present
-			if m.Reasoning != nil {
-				if m.Reasoning.Content != "" {
-					items = append(items, map[string]interface{}{
-						"type": "reasoning",
-						"content": m.Reasoning.Content,
-					})
-				}
-				if m.Reasoning.EncryptedContent != "" {
-					items = append(items, map[string]interface{}{
-						"type": "reasoning",
-						"encrypted_content": m.Reasoning.EncryptedContent,
-					})
-				}
-			}
+			// NOTE: We do NOT send reasoning back to the model as input.
+			// Reasoning is response-only metadata for consumers and should not
+			// be part of the conversation context sent to the model.
 
 		case agent.RoleTool:
 			// Tool response

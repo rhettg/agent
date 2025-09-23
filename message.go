@@ -214,11 +214,9 @@ func ImportMessagesFromYAML(yamlString string) ([]*Message, error) {
 
 	var messages []*Message
 	for _, ym := range yamlMessages {
-		msg := &Message{
-			Role:    Role(ym["Role"].(string)),
-			content: ym["Content"].(string),
-			attrs:   make(map[string]string),
-		}
+		msg := newMessage()
+		msg.Role = Role(ym["Role"].(string))
+		msg.content = ym["Content"].(string)
 		
 		// Import reasoning if present - try both possible map types for robustness
 		if reasoningRaw, exists := ym["Reasoning"]; exists {
