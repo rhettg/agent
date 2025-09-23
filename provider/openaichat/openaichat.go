@@ -32,6 +32,10 @@ type MessageDelta struct {
 	ToolCallID        string
 	ToolCallName      string
 	ToolCallArguments string
+	
+	// Reasoning support for streaming
+	ReasoningContent  string `json:"reasoning_content,omitempty"`
+	ReasoningSummary  string `json:"reasoning_summary,omitempty"`
 }
 
 type MessageDeltaFunc func(ctx context.Context, delta MessageDelta)

@@ -15,6 +15,13 @@ type Image struct {
 	Data []byte
 }
 
+// Reasoning represents reasoning content from LLM responses
+type Reasoning struct {
+	Content          string   `json:"content,omitempty"`           // plain reasoning text
+	EncryptedContent string   `json:"encrypted_content,omitempty"` // encrypted reasoning blob
+	Summaries        []string `json:"summaries,omitempty"`         // human-readable summaries
+}
+
 type Message struct {
 	Role    Role
 	content string
@@ -27,6 +34,9 @@ type Message struct {
 	// Tool calling support
 	ToolCalls []ToolCall  // Only for assistant messages
 	ToolCallID string     // Only for tool response messages
+
+	// Reasoning support (optional, primarily for assistant messages)
+	Reasoning *Reasoning `json:"reasoning,omitempty"`
 
 	contentFn ContentFn
 	attrs     map[string]string
@@ -108,6 +118,16 @@ func NewMessageFromMessage(m *Message) *Message {
 	nm.contentFn = m.contentFn
 	nm.imageData = make([]Image, len(m.imageData))
 	copy(nm.imageData, m.imageData)
+
+	// Copy reasoning if present
+	if m.Reasoning != nil {
+		nm.Reasoning = &Reasoning{
+			Content:          m.Reasoning.Content,
+			EncryptedContent: m.Reasoning.EncryptedContent,
+			Summaries:        make([]string, len(m.Reasoning.Summaries)),
+		}
+		copy(nm.Reasoning.Summaries, m.Reasoning.Summaries)
+	}
 
 	for k, v := range m.attrs {
 		nm.attrs[k] = v

@@ -226,6 +226,66 @@ The `MessageDelta` contains:
 
 Streaming works transparently with all middleware - the final response is still a complete `Message` object that your application logic can use normally.
 
+### Responses API with Reasoning
+
+The library includes support for OpenAI's Responses API, which provides access to the model's reasoning process. This allows you to see how the model thinks through problems step-by-step.
+
+```go
+// Create a Responses API provider with reasoning enabled
+p := openairesponses.New(apiKey, "gpt-4o-2024-08-06",
+	openairesponses.WithReasoning(true),
+	openairesponses.WithReasoningSummary(true),
+	openairesponses.WithStore(false), // Don't store for privacy
+)
+
+a := agent.New(p)
+a.Add(agent.RoleSystem, "You are a helpful assistant that shows your reasoning.")
+a.Add(agent.RoleUser, "Explain why the sky is blue.")
+
+resp, err := a.Step(context.Background())
+if err != nil {
+	log.Fatalf("error: %v", err)
+}
+
+// Access the response content
+content, _ := resp.Content(context.Background())
+fmt.Println("Response:", content)
+
+// Access the reasoning if available
+if resp.Reasoning != nil {
+	if resp.Reasoning.Content != "" {
+		fmt.Println("Reasoning:", resp.Reasoning.Content)
+	}
+	for i, summary := range resp.Reasoning.Summaries {
+		fmt.Printf("Summary %d: %s\n", i+1, summary)
+	}
+}
+```
+
+#### Reasoning Options
+
+- `WithReasoning(bool)`: Include plain text reasoning in responses
+- `WithEncryptedReasoning(bool)`: Include encrypted reasoning for privacy
+- `WithReasoningSummary(bool)`: Include human-readable reasoning summaries
+- `WithStore(bool)`: Whether to store the conversation server-side (default: false for privacy)
+
+#### Reasoning in Messages
+
+The `Message` struct includes an optional `Reasoning` field that contains:
+
+```go
+type Reasoning struct {
+    Content          string   // Plain reasoning text
+    EncryptedContent string   // Encrypted reasoning blob
+    Summaries        []string // Human-readable summaries
+}
+```
+
+Reasoning is preserved through message copying and middleware processing, allowing you to build complex workflows while maintaining access to the model's thought process.
+
+**Note**: The Responses API provider is currently a placeholder implementation waiting for official SDK support. Once OpenAI's Go SDK adds Responses API support, this provider will work seamlessly.
+
+See [example](./examples/responses/main.go)
 
 ### Vision
 
