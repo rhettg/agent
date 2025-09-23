@@ -71,3 +71,38 @@ func TestYAMLExportImportWithoutReasoning(t *testing.T) {
 	// Verify no reasoning
 	assert.Nil(t, importedMsg.Reasoning)
 }
+
+func TestNewFromAgentWithReasoning(t *testing.T) {
+	// Create a mock completion function
+	mockFn := func(ctx context.Context, msgs []*Message, fns []ToolDef) (*Message, error) {
+		return NewContentMessage(RoleAssistant, "response"), nil
+	}
+
+	// Create original agent with a message that has reasoning
+	original := New(mockFn)
+	msg := NewContentMessage(RoleAssistant, "Original message")
+	msg.Reasoning = &Reasoning{
+		Content:   "Original reasoning",
+		Summaries: []string{"Summary 1"},
+	}
+	original.AddMessage(msg)
+
+	// Create new agent from original
+	copy := NewFromAgent(original)
+
+	// Verify messages were copied
+	originalMsgs := original.Messages()
+	copyMsgs := copy.Messages()
+	require.Len(t, copyMsgs, 1)
+	require.Len(t, originalMsgs, 1)
+
+	// Verify reasoning was deep copied
+	require.NotNil(t, copyMsgs[0].Reasoning)
+	assert.Equal(t, "Original reasoning", copyMsgs[0].Reasoning.Content)
+	assert.Equal(t, []string{"Summary 1"}, copyMsgs[0].Reasoning.Summaries)
+
+	// Verify it's a deep copy (modifying copy doesn't affect original)
+	copyMsgs[0].Reasoning.Content = "Modified reasoning"
+	assert.Equal(t, "Original reasoning", originalMsgs[0].Reasoning.Content)
+	assert.Equal(t, "Modified reasoning", copyMsgs[0].Reasoning.Content)
+}

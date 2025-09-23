@@ -220,23 +220,40 @@ func ImportMessagesFromYAML(yamlString string) ([]*Message, error) {
 			attrs:   make(map[string]string),
 		}
 		
-		// Import reasoning if present
-		if reasoningData, ok := ym["Reasoning"].(map[interface{}]interface{}); ok {
-			reasoning := &Reasoning{}
-			if content, ok := reasoningData["content"].(string); ok {
-				reasoning.Content = content
-			}
-			if encryptedContent, ok := reasoningData["encrypted_content"].(string); ok {
-				reasoning.EncryptedContent = encryptedContent
-			}
-			if summariesData, ok := reasoningData["summaries"].([]interface{}); ok {
-				for _, summary := range summariesData {
-					if s, ok := summary.(string); ok {
-						reasoning.Summaries = append(reasoning.Summaries, s)
+		// Import reasoning if present - try both possible map types for robustness
+		if reasoningRaw, exists := ym["Reasoning"]; exists {
+			var reasoningData map[string]interface{}
+			
+			// Try string-keyed map first, then interface-keyed map
+			if stringMap, ok := reasoningRaw.(map[string]interface{}); ok {
+				reasoningData = stringMap
+			} else if interfaceMap, ok := reasoningRaw.(map[interface{}]interface{}); ok {
+				// Convert interface{} keys to strings
+				reasoningData = make(map[string]interface{})
+				for k, v := range interfaceMap {
+					if keyStr, ok := k.(string); ok {
+						reasoningData[keyStr] = v
 					}
 				}
 			}
-			msg.Reasoning = reasoning
+			
+			if reasoningData != nil {
+				reasoning := &Reasoning{}
+				if content, ok := reasoningData["content"].(string); ok {
+					reasoning.Content = content
+				}
+				if encryptedContent, ok := reasoningData["encrypted_content"].(string); ok {
+					reasoning.EncryptedContent = encryptedContent
+				}
+				if summariesData, ok := reasoningData["summaries"].([]interface{}); ok {
+					for _, summary := range summariesData {
+						if s, ok := summary.(string); ok {
+							reasoning.Summaries = append(reasoning.Summaries, s)
+						}
+					}
+				}
+				msg.Reasoning = reasoning
+			}
 		}
 		
 		messages = append(messages, msg)

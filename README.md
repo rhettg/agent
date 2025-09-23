@@ -231,9 +231,10 @@ Streaming works transparently with all middleware - the final response is still 
 The library includes support for OpenAI's Responses API, which provides access to the model's reasoning process. This allows you to see how the model thinks through problems step-by-step.
 
 ```go
-// Create a Responses API provider with reasoning enabled
+// Create a Responses API provider with plain reasoning enabled
 p := openairesponses.New(apiKey, "gpt-4o-2024-08-06",
 	openairesponses.WithReasoning(true),
+	openairesponses.WithEncryptedReasoning(false), // Use plain reasoning, not encrypted
 	openairesponses.WithReasoningSummary(true),
 	openairesponses.WithStore(false), // Don't store for privacy
 )

@@ -16,9 +16,10 @@ func main() {
 		log.Fatal("OPENAI_API_KEY environment variable not set")
 	}
 
-	// Create a Responses API provider with reasoning enabled
+	// Create a Responses API provider with plain reasoning enabled
 	p := openairesponses.New(apiKey, "gpt-4o-2024-08-06",
 		openairesponses.WithReasoning(true),
+		openairesponses.WithEncryptedReasoning(false), // Use plain reasoning, not encrypted
 		openairesponses.WithReasoningSummary(true),
 		openairesponses.WithStore(false), // Don't store for privacy
 	)
