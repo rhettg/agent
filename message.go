@@ -175,6 +175,23 @@ func ExportMessagesToYAML(ctx context.Context, messages []*Message) (string, err
 			yamlMessage["Images"] = images
 		}
 
+		// Add reasoning if present
+		if m.Reasoning != nil {
+			reasoning := make(map[string]interface{})
+			if m.Reasoning.Content != "" {
+				reasoning["content"] = m.Reasoning.Content
+			}
+			if m.Reasoning.EncryptedContent != "" {
+				reasoning["encrypted_content"] = m.Reasoning.EncryptedContent
+			}
+			if len(m.Reasoning.Summaries) > 0 {
+				reasoning["summaries"] = m.Reasoning.Summaries
+			}
+			if len(reasoning) > 0 {
+				yamlMessage["Reasoning"] = reasoning
+			}
+		}
+
 		// TODO: Functions
 		// TODO: attrs
 
@@ -197,10 +214,32 @@ func ImportMessagesFromYAML(yamlString string) ([]*Message, error) {
 
 	var messages []*Message
 	for _, ym := range yamlMessages {
-		messages = append(messages, &Message{
+		msg := &Message{
 			Role:    Role(ym["Role"].(string)),
 			content: ym["Content"].(string),
-		})
+			attrs:   make(map[string]string),
+		}
+		
+		// Import reasoning if present
+		if reasoningData, ok := ym["Reasoning"].(map[interface{}]interface{}); ok {
+			reasoning := &Reasoning{}
+			if content, ok := reasoningData["content"].(string); ok {
+				reasoning.Content = content
+			}
+			if encryptedContent, ok := reasoningData["encrypted_content"].(string); ok {
+				reasoning.EncryptedContent = encryptedContent
+			}
+			if summariesData, ok := reasoningData["summaries"].([]interface{}); ok {
+				for _, summary := range summariesData {
+					if s, ok := summary.(string); ok {
+						reasoning.Summaries = append(reasoning.Summaries, s)
+					}
+				}
+			}
+			msg.Reasoning = reasoning
+		}
+		
+		messages = append(messages, msg)
 	}
 
 	return messages, nil

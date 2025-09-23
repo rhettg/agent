@@ -179,8 +179,7 @@ func (p *provider) mapOutputItemsToMessage(items []interface{}) (*agent.Message,
 	
 	// Set the combined content
 	if len(contentParts) > 0 {
-		// Update the message content using reflection since content is private
-		// We'll need to create a new message with the content
+		// Create a new message with the combined content since content field is private
 		newMsg := agent.NewContentMessage(agent.RoleAssistant, strings.Join(contentParts, ""))
 		newMsg.ToolCalls = msg.ToolCalls
 		newMsg.Reasoning = reasoning

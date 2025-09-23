@@ -11,6 +11,11 @@ import (
 
 const defaultTemperature = float64(1.0)
 
+// boolPtr returns a pointer to the given bool value
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 type provider struct {
 	client           openai.Client
 	temperature      float64
@@ -89,7 +94,7 @@ func NewWithClient(client openai.Client, modelName string, opts ...Option) agent
 		
 		// Default reasoning settings - encrypted for privacy
 		includeEncryptedReasoning: true,
-		store:                     &[]bool{false}[0], // Default to false for privacy
+		store:                     boolPtr(false), // Default to false for privacy
 	}
 
 	for _, o := range opts {
@@ -141,15 +146,15 @@ func (p *provider) Completion(
 	
 	// Set reasoning options
 	if p.includeReasoning {
-		params.IncludeReasoning = &[]bool{true}[0]
+		params.IncludeReasoning = boolPtr(true)
 	}
 	
 	if p.includeEncryptedReasoning {
-		params.IncludeEncryptedReasoning = &[]bool{true}[0]
+		params.IncludeEncryptedReasoning = boolPtr(true)
 	}
 	
 	if p.includeReasoningSummary {
-		params.IncludeReasoningSummary = &[]bool{true}[0]
+		params.IncludeReasoningSummary = boolPtr(true)
 	}
 	
 	if p.store != nil {
@@ -185,12 +190,8 @@ func (p *provider) nonStreamCompletion(ctx context.Context, params ResponsesNewP
 }
 
 func (p *provider) streamCompletion(ctx context.Context, params ResponsesNewParams) (*agent.Message, error) {
-	// Enable streaming
-	params.Stream = &[]bool{true}[0]
-	
-	// For now, fall back to non-streaming until streaming is fully implemented
-	// TODO: Implement proper streaming when SDK supports it
-	return p.nonStreamCompletion(ctx, params)
+	// Return clear error when streaming is requested but not yet implemented
+	return nil, fmt.Errorf("streaming not yet implemented for OpenAI Responses API - waiting for SDK support")
 }
 
 func (p *provider) createCompletionFunc() ResponsesCompletionFn {
