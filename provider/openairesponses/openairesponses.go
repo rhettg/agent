@@ -57,18 +57,18 @@ func WithMessageDeltaFunc(f MessageDeltaFunc) Option {
 // WithReasoningEffort sets the reasoning effort level for reasoning models.
 // Supported values: "minimal", "low", "medium", "high".
 // Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning.
-func WithReasoningEffort(effort shared.ReasoningEffort) Option {
+func WithReasoningEffort(effort string) Option {
 	return func(p *provider) {
-		p.reasoningEffort = effort
+		p.reasoningEffort = shared.ReasoningEffort(effort)
 	}
 }
 
 // WithReasoningSummary sets the reasoning summary level for reasoning models.
 // Supported values: "auto", "concise", "detailed".
 // This provides a summary of the reasoning performed by the model.
-func WithReasoningSummary(summary shared.ReasoningSummary) Option {
+func WithReasoningSummary(summary string) Option {
 	return func(p *provider) {
-		p.reasoningSummary = summary
+		p.reasoningSummary = shared.ReasoningSummary(summary)
 	}
 }
 
