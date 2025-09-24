@@ -251,13 +251,14 @@ content, _ := resp.Content(context.Background())
 fmt.Println("Response:", content)
 
 // Access the reasoning if available
-if resp.Reasoning != nil {
-	if resp.Reasoning.Content != "" {
-		fmt.Println("Reasoning:", resp.Reasoning.Content)
-	}
-	for i, summary := range resp.Reasoning.Summaries {
-		fmt.Printf("Summary %d: %s\n", i+1, summary)
-	}
+if resp.ReasoningContent != "" {
+	fmt.Println("Reasoning:", resp.ReasoningContent)
+}
+if resp.ReasoningEncryptedContent != "" {
+	fmt.Println("Encrypted reasoning available (length:", len(resp.ReasoningEncryptedContent), ")")
+}
+for i, summary := range resp.ReasoningSummaries {
+	fmt.Printf("Summary %d: %s\n", i+1, summary)
 }
 ```
 
