@@ -15,13 +15,6 @@ type Image struct {
 	Data []byte
 }
 
-// Reasoning represents reasoning content from LLM responses
-type Reasoning struct {
-	Content          string   `json:"content,omitempty"`           // plain reasoning text
-	EncryptedContent string   `json:"encrypted_content,omitempty"` // encrypted reasoning blob
-	Summaries        []string `json:"summaries,omitempty"`         // human-readable summaries
-}
-
 type Message struct {
 	Role    Role
 	content string
@@ -36,7 +29,9 @@ type Message struct {
 	ToolCallID string     // Only for tool response messages
 
 	// Reasoning support (optional, primarily for assistant messages)
-	Reasoning *Reasoning `json:"reasoning,omitempty"`
+	ReasoningContent          string   `json:"reasoning_content,omitempty"`           // plain reasoning text
+	ReasoningEncryptedContent string   `json:"reasoning_encrypted_content,omitempty"` // encrypted reasoning blob
+	ReasoningSummaries        []string `json:"reasoning_summaries,omitempty"`         // human-readable summaries
 
 	contentFn ContentFn
 	attrs     map[string]string
@@ -119,14 +114,12 @@ func NewMessageFromMessage(m *Message) *Message {
 	nm.imageData = make([]Image, len(m.imageData))
 	copy(nm.imageData, m.imageData)
 
-	// Copy reasoning if present
-	if m.Reasoning != nil {
-		nm.Reasoning = &Reasoning{
-			Content:          m.Reasoning.Content,
-			EncryptedContent: m.Reasoning.EncryptedContent,
-			Summaries:        make([]string, len(m.Reasoning.Summaries)),
-		}
-		copy(nm.Reasoning.Summaries, m.Reasoning.Summaries)
+	// Copy reasoning fields
+	nm.ReasoningContent = m.ReasoningContent
+	nm.ReasoningEncryptedContent = m.ReasoningEncryptedContent
+	if len(m.ReasoningSummaries) > 0 {
+		nm.ReasoningSummaries = make([]string, len(m.ReasoningSummaries))
+		copy(nm.ReasoningSummaries, m.ReasoningSummaries)
 	}
 
 	for k, v := range m.attrs {
@@ -176,20 +169,18 @@ func ExportMessagesToYAML(ctx context.Context, messages []*Message) (string, err
 		}
 
 		// Add reasoning if present
-		if m.Reasoning != nil {
+		if m.ReasoningContent != "" || m.ReasoningEncryptedContent != "" || len(m.ReasoningSummaries) > 0 {
 			reasoning := make(map[string]interface{})
-			if m.Reasoning.Content != "" {
-				reasoning["content"] = m.Reasoning.Content
+			if m.ReasoningContent != "" {
+				reasoning["content"] = m.ReasoningContent
 			}
-			if m.Reasoning.EncryptedContent != "" {
-				reasoning["encrypted_content"] = m.Reasoning.EncryptedContent
+			if m.ReasoningEncryptedContent != "" {
+				reasoning["encrypted_content"] = m.ReasoningEncryptedContent
 			}
-			if len(m.Reasoning.Summaries) > 0 {
-				reasoning["summaries"] = m.Reasoning.Summaries
+			if len(m.ReasoningSummaries) > 0 {
+				reasoning["summaries"] = m.ReasoningSummaries
 			}
-			if len(reasoning) > 0 {
-				yamlMessage["Reasoning"] = reasoning
-			}
+			yamlMessage["Reasoning"] = reasoning
 		}
 
 		// TODO: Functions
@@ -236,21 +227,19 @@ func ImportMessagesFromYAML(yamlString string) ([]*Message, error) {
 			}
 			
 			if reasoningData != nil {
-				reasoning := &Reasoning{}
 				if content, ok := reasoningData["content"].(string); ok {
-					reasoning.Content = content
+					msg.ReasoningContent = content
 				}
 				if encryptedContent, ok := reasoningData["encrypted_content"].(string); ok {
-					reasoning.EncryptedContent = encryptedContent
+					msg.ReasoningEncryptedContent = encryptedContent
 				}
 				if summariesData, ok := reasoningData["summaries"].([]interface{}); ok {
 					for _, summary := range summariesData {
 						if s, ok := summary.(string); ok {
-							reasoning.Summaries = append(reasoning.Summaries, s)
+							msg.ReasoningSummaries = append(msg.ReasoningSummaries, s)
 						}
 					}
 				}
-				msg.Reasoning = reasoning
 			}
 		}
 		

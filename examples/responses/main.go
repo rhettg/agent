@@ -42,17 +42,17 @@ func main() {
 	fmt.Println("Response:", content)
 
 	// Check if reasoning was included
-	if resp.Reasoning != nil {
+	if resp.ReasoningContent != "" || resp.ReasoningEncryptedContent != "" || len(resp.ReasoningSummaries) > 0 {
 		fmt.Println("\n--- Reasoning ---")
-		if resp.Reasoning.Content != "" {
-			fmt.Println("Plain reasoning:", resp.Reasoning.Content)
+		if resp.ReasoningContent != "" {
+			fmt.Println("Plain reasoning:", resp.ReasoningContent)
 		}
-		if resp.Reasoning.EncryptedContent != "" {
-			fmt.Println("Encrypted reasoning available (length:", len(resp.Reasoning.EncryptedContent), ")")
+		if resp.ReasoningEncryptedContent != "" {
+			fmt.Println("Encrypted reasoning available (length:", len(resp.ReasoningEncryptedContent), ")")
 		}
-		if len(resp.Reasoning.Summaries) > 0 {
+		if len(resp.ReasoningSummaries) > 0 {
 			fmt.Println("Reasoning summaries:")
-			for i, summary := range resp.Reasoning.Summaries {
+			for i, summary := range resp.ReasoningSummaries {
 				fmt.Printf("  %d: %s\n", i+1, summary)
 			}
 		}

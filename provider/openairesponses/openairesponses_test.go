@@ -46,37 +46,31 @@ func TestMessageMapping(t *testing.T) {
 func TestMessageWithReasoning(t *testing.T) {
 	// Test creating a message with reasoning
 	msg := agent.NewContentMessage(agent.RoleAssistant, "The sky is blue because...")
-	msg.Reasoning = &agent.Reasoning{
-		Content:   "Let me think about this step by step...",
-		Summaries: []string{"Considered light scattering", "Analyzed wavelengths"},
-	}
+	msg.ReasoningContent = "Let me think about this step by step..."
+	msg.ReasoningSummaries = []string{"Considered light scattering", "Analyzed wavelengths"}
 
 	// Test that reasoning is preserved
-	assert.NotNil(t, msg.Reasoning)
-	assert.Equal(t, "Let me think about this step by step...", msg.Reasoning.Content)
-	assert.Len(t, msg.Reasoning.Summaries, 2)
+	assert.Equal(t, "Let me think about this step by step...", msg.ReasoningContent)
+	assert.Len(t, msg.ReasoningSummaries, 2)
 }
 
 func TestMessageCopyWithReasoning(t *testing.T) {
 	// Test that NewMessageFromMessage preserves reasoning
 	original := agent.NewContentMessage(agent.RoleAssistant, "Original content")
-	original.Reasoning = &agent.Reasoning{
-		Content:          "Original reasoning",
-		EncryptedContent: "encrypted-blob",
-		Summaries:        []string{"Summary 1", "Summary 2"},
-	}
+	original.ReasoningContent = "Original reasoning"
+	original.ReasoningEncryptedContent = "encrypted-blob"
+	original.ReasoningSummaries = []string{"Summary 1", "Summary 2"}
 
 	copy := agent.NewMessageFromMessage(original)
 
 	// Verify reasoning was copied
-	require.NotNil(t, copy.Reasoning)
-	assert.Equal(t, original.Reasoning.Content, copy.Reasoning.Content)
-	assert.Equal(t, original.Reasoning.EncryptedContent, copy.Reasoning.EncryptedContent)
-	assert.Equal(t, original.Reasoning.Summaries, copy.Reasoning.Summaries)
+	assert.Equal(t, original.ReasoningContent, copy.ReasoningContent)
+	assert.Equal(t, original.ReasoningEncryptedContent, copy.ReasoningEncryptedContent)
+	assert.Equal(t, original.ReasoningSummaries, copy.ReasoningSummaries)
 
 	// Verify it's a deep copy (modifying copy doesn't affect original)
-	copy.Reasoning.Content = "Modified reasoning"
-	assert.NotEqual(t, original.Reasoning.Content, copy.Reasoning.Content)
+	copy.ReasoningContent = "Modified reasoning"
+	assert.NotEqual(t, original.ReasoningContent, copy.ReasoningContent)
 }
 
 func TestCompletionWithoutAPIKey(t *testing.T) {

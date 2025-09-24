@@ -83,9 +83,9 @@ func NewWithClient(client openai.Client, modelName string, opts ...Option) agent
 		modelName:   modelName,
 		temperature: defaultTemperature,
 		
-		// Default reasoning settings - no reasoning by default for minimal overhead
-		reasoningEffort:  "", // Empty means not set
-		reasoningSummary: "", // Empty means not set
+		// Default reasoning settings - use model defaults when not specified
+		reasoningEffort:  "", // Empty means use model default
+		reasoningSummary: "", // Empty means use model default
 	}
 
 	for _, o := range opts {

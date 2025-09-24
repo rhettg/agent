@@ -50,13 +50,32 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 			}
 
 		case agent.RoleAssistant:
-			// For now, treat all assistant messages as simple messages
-			// TODO: Handle tool calls properly when we understand the correct API structure
+			// Add the assistant message
 			items = append(items, responses.ResponseInputItemParamOfMessage(content, "assistant"))
 			
-			// NOTE: We do NOT send reasoning back to the model as input.
-			// Reasoning is response-only metadata for consumers and should not
-			// be part of the conversation context sent to the model.
+			// Add tool calls if present
+			for _, toolCall := range m.ToolCalls {
+				items = append(items, responses.ResponseInputItemParamOfFunctionCall(
+					toolCall.Arguments,
+					toolCall.ID,
+					toolCall.Name,
+				))
+			}
+			
+			// Add reasoning if present (encrypted reasoning is preserved for context)
+			if m.ReasoningEncryptedContent != "" || len(m.ReasoningSummaries) > 0 {
+				// Create reasoning summaries for input
+				var summaries []responses.ResponseReasoningItemSummaryParam
+				for _, summary := range m.ReasoningSummaries {
+					summaries = append(summaries, responses.ResponseReasoningItemSummaryParam{
+						Text: summary,
+					})
+				}
+				
+				// Use a generated ID for the reasoning item
+				reasoningID := fmt.Sprintf("reasoning_%d", len(items))
+				items = append(items, responses.ResponseInputItemParamOfReasoning(reasoningID, summaries))
+			}
 
 		case agent.RoleTool:
 			// Tool response
@@ -84,31 +103,34 @@ func (p *provider) mapResponseToMessage(resp *responses.Response) (*agent.Messag
 	for _, outputItem := range resp.Output {
 		// Extract reasoning
 		if reasoningItem := outputItem.AsReasoning(); reasoningItem.Type != "" {
-			if msg.Reasoning == nil {
-				msg.Reasoning = &agent.Reasoning{}
-			}
-			
 			// Extract reasoning content (text)
 			var contentParts []string
 			for _, contentItem := range reasoningItem.Content {
 				contentParts = append(contentParts, contentItem.Text)
 			}
 			if len(contentParts) > 0 {
-				msg.Reasoning.Content = strings.Join(contentParts, "\n")
+				msg.ReasoningContent = strings.Join(contentParts, "\n")
 			}
 			
 			// Extract encrypted content if present
 			if reasoningItem.EncryptedContent != "" {
-				msg.Reasoning.EncryptedContent = reasoningItem.EncryptedContent
+				msg.ReasoningEncryptedContent = reasoningItem.EncryptedContent
 			}
 			
 			// Extract reasoning summaries
 			for _, summaryItem := range reasoningItem.Summary {
-				msg.Reasoning.Summaries = append(msg.Reasoning.Summaries, summaryItem.Text)
+				msg.ReasoningSummaries = append(msg.ReasoningSummaries, summaryItem.Text)
 			}
 		}
 		
-		// TODO: Extract tool calls from response output if present
+		// Extract tool calls
+		if functionCall := outputItem.AsFunctionCall(); functionCall.Type != "" {
+			msg.ToolCalls = append(msg.ToolCalls, agent.ToolCall{
+				ID:        functionCall.CallID,
+				Name:      functionCall.Name,
+				Arguments: functionCall.Arguments,
+			})
+		}
 	}
 	
 	return msg, nil

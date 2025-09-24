@@ -11,11 +11,9 @@ import (
 func TestYAMLExportImportWithReasoning(t *testing.T) {
 	// Create a message with reasoning
 	msg := NewContentMessage(RoleAssistant, "The sky is blue because of light scattering.")
-	msg.Reasoning = &Reasoning{
-		Content:          "Let me think about this step by step...",
-		EncryptedContent: "encrypted-reasoning-blob",
-		Summaries:        []string{"Considered light physics", "Analyzed wavelengths"},
-	}
+	msg.ReasoningContent = "Let me think about this step by step..."
+	msg.ReasoningEncryptedContent = "encrypted-reasoning-blob"
+	msg.ReasoningSummaries = []string{"Considered light physics", "Analyzed wavelengths"}
 
 	messages := []*Message{msg}
 
@@ -40,10 +38,9 @@ func TestYAMLExportImportWithReasoning(t *testing.T) {
 	assert.Equal(t, "The sky is blue because of light scattering.", content)
 
 	// Verify reasoning was preserved
-	require.NotNil(t, importedMsg.Reasoning)
-	assert.Equal(t, "Let me think about this step by step...", importedMsg.Reasoning.Content)
-	assert.Equal(t, "encrypted-reasoning-blob", importedMsg.Reasoning.EncryptedContent)
-	assert.Equal(t, []string{"Considered light physics", "Analyzed wavelengths"}, importedMsg.Reasoning.Summaries)
+	assert.Equal(t, "Let me think about this step by step...", importedMsg.ReasoningContent)
+	assert.Equal(t, "encrypted-reasoning-blob", importedMsg.ReasoningEncryptedContent)
+	assert.Equal(t, []string{"Considered light physics", "Analyzed wavelengths"}, importedMsg.ReasoningSummaries)
 }
 
 func TestYAMLExportImportWithoutReasoning(t *testing.T) {
@@ -69,7 +66,9 @@ func TestYAMLExportImportWithoutReasoning(t *testing.T) {
 	assert.Equal(t, "Hello!", content)
 
 	// Verify no reasoning
-	assert.Nil(t, importedMsg.Reasoning)
+	assert.Empty(t, importedMsg.ReasoningContent)
+	assert.Empty(t, importedMsg.ReasoningEncryptedContent)
+	assert.Empty(t, importedMsg.ReasoningSummaries)
 }
 
 func TestNewFromAgentWithReasoning(t *testing.T) {
@@ -81,10 +80,8 @@ func TestNewFromAgentWithReasoning(t *testing.T) {
 	// Create original agent with a message that has reasoning
 	original := New(mockFn)
 	msg := NewContentMessage(RoleAssistant, "Original message")
-	msg.Reasoning = &Reasoning{
-		Content:   "Original reasoning",
-		Summaries: []string{"Summary 1"},
-	}
+	msg.ReasoningContent = "Original reasoning"
+	msg.ReasoningSummaries = []string{"Summary 1"}
 	original.AddMessage(msg)
 
 	// Create new agent from original
@@ -97,12 +94,11 @@ func TestNewFromAgentWithReasoning(t *testing.T) {
 	require.Len(t, originalMsgs, 1)
 
 	// Verify reasoning was deep copied
-	require.NotNil(t, copyMsgs[0].Reasoning)
-	assert.Equal(t, "Original reasoning", copyMsgs[0].Reasoning.Content)
-	assert.Equal(t, []string{"Summary 1"}, copyMsgs[0].Reasoning.Summaries)
+	assert.Equal(t, "Original reasoning", copyMsgs[0].ReasoningContent)
+	assert.Equal(t, []string{"Summary 1"}, copyMsgs[0].ReasoningSummaries)
 
 	// Verify it's a deep copy (modifying copy doesn't affect original)
-	copyMsgs[0].Reasoning.Content = "Modified reasoning"
-	assert.Equal(t, "Original reasoning", originalMsgs[0].Reasoning.Content)
-	assert.Equal(t, "Modified reasoning", copyMsgs[0].Reasoning.Content)
+	copyMsgs[0].ReasoningContent = "Modified reasoning"
+	assert.Equal(t, "Original reasoning", originalMsgs[0].ReasoningContent)
+	assert.Equal(t, "Modified reasoning", copyMsgs[0].ReasoningContent)
 }
