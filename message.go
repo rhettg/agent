@@ -205,8 +205,20 @@ func ImportMessagesFromYAML(yamlString string) ([]*Message, error) {
 	var messages []*Message
 	for _, ym := range yamlMessages {
 		msg := newMessage()
-		msg.Role = Role(ym["Role"].(string))
-		msg.content = ym["Content"].(string)
+		
+		// Safely extract role
+		if roleVal, ok := ym["Role"].(string); ok {
+			msg.Role = Role(roleVal)
+		} else {
+			continue // Skip malformed messages
+		}
+		
+		// Safely extract content
+		if contentVal, ok := ym["Content"].(string); ok {
+			msg.content = contentVal
+		} else {
+			msg.content = "" // Default to empty content
+		}
 		
 		// Import reasoning if present - try both possible map types for robustness
 		if reasoningRaw, exists := ym["Reasoning"]; exists {
