@@ -6,6 +6,9 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v2/packages/ssestream"
+	"github.com/openai/openai-go/v2/responses"
+	"github.com/openai/openai-go/v2/shared"
 	"github.com/rhettg/agent"
 )
 
@@ -25,10 +28,8 @@ type provider struct {
 	messageDeltaFunc MessageDeltaFunc
 	
 	// Responses API specific options
-	includeReasoning          bool
-	includeEncryptedReasoning bool
-	includeReasoningSummary   bool
-	store                     *bool
+	reasoningEffort  shared.ReasoningEffort
+	reasoningSummary shared.ReasoningSummary
 }
 
 type Option func(p *provider)
@@ -52,36 +53,27 @@ func WithMaxTokens(m int) Option {
 }
 
 // WithMessageDeltaFunc sets a callback for streaming message deltas.
-// WARNING: Streaming is not yet implemented for the Responses API provider.
-// Setting this option will cause all completion requests to return an error
-// until OpenAI's Go SDK adds Responses API streaming support.
 func WithMessageDeltaFunc(f MessageDeltaFunc) Option {
 	return func(p *provider) {
 		p.messageDeltaFunc = f
 	}
 }
 
-func WithReasoning(enabled bool) Option {
+// WithReasoningEffort sets the reasoning effort level for reasoning models.
+// Supported values: "minimal", "low", "medium", "high".
+// Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning.
+func WithReasoningEffort(effort shared.ReasoningEffort) Option {
 	return func(p *provider) {
-		p.includeReasoning = enabled
+		p.reasoningEffort = effort
 	}
 }
 
-func WithEncryptedReasoning(enabled bool) Option {
+// WithReasoningSummary sets the reasoning summary level for reasoning models.
+// Supported values: "auto", "concise", "detailed".
+// This provides a summary of the reasoning performed by the model.
+func WithReasoningSummary(summary shared.ReasoningSummary) Option {
 	return func(p *provider) {
-		p.includeEncryptedReasoning = enabled
-	}
-}
-
-func WithReasoningSummary(enabled bool) Option {
-	return func(p *provider) {
-		p.includeReasoningSummary = enabled
-	}
-}
-
-func WithStore(enabled bool) Option {
-	return func(p *provider) {
-		p.store = &enabled
+		p.reasoningSummary = summary
 	}
 }
 
@@ -96,9 +88,9 @@ func NewWithClient(client openai.Client, modelName string, opts ...Option) agent
 		modelName:   modelName,
 		temperature: defaultTemperature,
 		
-		// Default reasoning settings - encrypted for privacy
-		includeEncryptedReasoning: true,
-		store:                     boolPtr(false), // Default to false for privacy
+		// Default reasoning settings - no reasoning by default for minimal overhead
+		reasoningEffort:  "", // Empty means not set
+		reasoningSummary: "", // Empty means not set
 	}
 
 	for _, o := range opts {
@@ -117,52 +109,45 @@ func (p *provider) Completion(
 		return nil, fmt.Errorf("failed to map messages to input items: %w", err)
 	}
 	
-	// Convert tool definitions to function definitions
-	var functions []ResponsesFunctionParam
+	// Convert tool definitions to function tools
+	var tools []responses.ToolUnionParam
 	for _, tdf := range tdfs {
-		desc := tdf.Description
-		functions = append(functions, ResponsesFunctionParam{
-			Name:        tdf.Name,
-			Description: &desc,
-			Parameters:  tdf.Parameters,
-		})
+		tools = append(tools, responses.ToolParamOfFunction(
+			tdf.Name,
+			tdf.Parameters.(map[string]any),
+			false, // strict mode
+		))
 	}
 	
 	// Build the request parameters
-	params := ResponsesNewParams{
-		Model: p.modelName,
+	params := responses.ResponseNewParams{
+		Model: shared.ResponsesModel(p.modelName),
 		Input: inputItems,
 	}
 	
 	// Set optional parameters
 	if p.temperature != 0 {
-		params.Temperature = &p.temperature
+		params.Temperature = openai.Float(p.temperature)
 	}
 	
 	if p.maxTokens != 0 {
-		maxTokens := int64(p.maxTokens)
-		params.MaxOutputTokens = &maxTokens
+		params.MaxOutputTokens = openai.Int(int64(p.maxTokens))
 	}
 	
-	if len(functions) > 0 {
-		params.Functions = functions
+	if len(tools) > 0 {
+		params.Tools = tools
 	}
 	
-	// Set reasoning options
-	if p.includeReasoning {
-		params.IncludeReasoning = boolPtr(true)
-	}
-	
-	if p.includeEncryptedReasoning {
-		params.IncludeEncryptedReasoning = boolPtr(true)
-	}
-	
-	if p.includeReasoningSummary {
-		params.IncludeReasoningSummary = boolPtr(true)
-	}
-	
-	if p.store != nil {
-		params.Store = p.store
+	// Set reasoning options if specified
+	if p.reasoningEffort != "" || p.reasoningSummary != "" {
+		reasoning := shared.ReasoningParam{}
+		if p.reasoningEffort != "" {
+			reasoning.Effort = p.reasoningEffort
+		}
+		if p.reasoningSummary != "" {
+			reasoning.Summary = p.reasoningSummary
+		}
+		params.Reasoning = reasoning
 	}
 	
 	// Handle streaming vs non-streaming
@@ -173,13 +158,13 @@ func (p *provider) Completion(
 	}
 }
 
-func (p *provider) nonStreamCompletion(ctx context.Context, params ResponsesNewParams) (*agent.Message, error) {
+func (p *provider) nonStreamCompletion(ctx context.Context, params responses.ResponseNewParams) (*agent.Message, error) {
 	// Assemble the middleware chain
 	completionFn := p.createCompletionFunc()
 	for _, m := range p.mw {
 		next := completionFn
 		fm := m
-		completionFn = func(ctx context.Context, params ResponsesNewParams, opts ...option.RequestOption) (*Response, error) {
+		completionFn = func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) (*responses.Response, error) {
 			return fm(ctx, params, next)
 		}
 	}
@@ -189,22 +174,70 @@ func (p *provider) nonStreamCompletion(ctx context.Context, params ResponsesNewP
 		return nil, err
 	}
 	
-	// Convert response output items to Agent message
-	return p.mapOutputItemsToMessage(resp.Output)
+	// Convert response to Agent message
+	return p.mapResponseToMessage(resp)
 }
 
-func (p *provider) streamCompletion(ctx context.Context, params ResponsesNewParams) (*agent.Message, error) {
-	// Return clear error when streaming is requested but not yet implemented
-	return nil, fmt.Errorf("streaming not yet implemented for OpenAI Responses API - waiting for SDK support")
+func (p *provider) streamCompletion(ctx context.Context, params responses.ResponseNewParams) (*agent.Message, error) {
+	// Create streaming completion function
+	streamingFn := p.createStreamingCompletionFunc()
+	
+	// Get the stream
+	stream := streamingFn(ctx, params)
+	defer stream.Close()
+	
+	// Accumulate the response
+	var finalResponse *responses.Response
+	
+	for stream.Next() {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		
+		event := stream.Current()
+		
+		// Call the delta function if provided
+		if p.messageDeltaFunc != nil {
+			delta := p.extractDeltaFromEvent(event)
+			if delta != nil {
+				p.messageDeltaFunc(ctx, *delta)
+			}
+		}
+		
+		// Check if this is the completion event
+		if completedEvent := event.AsResponseCompleted(); completedEvent.Type != "" {
+			finalResponse = &completedEvent.Response
+			break
+		}
+	}
+	
+	if err := stream.Err(); err != nil {
+		return nil, err
+	}
+	
+	if finalResponse == nil {
+		return nil, fmt.Errorf("no final response received from stream")
+	}
+	
+	// Convert response to Agent message
+	return p.mapResponseToMessage(finalResponse)
 }
 
 func (p *provider) createCompletionFunc() ResponsesCompletionFn {
-	return func(ctx context.Context, params ResponsesNewParams, opts ...option.RequestOption) (*Response, error) {
-		// NOTE: This is a placeholder implementation
-		// The actual OpenAI Go SDK v2 may not have Responses API support yet
-		// This would need to be updated when the SDK adds proper support
-		
-		// For now, return an error indicating the API is not yet available
-		return nil, fmt.Errorf("OpenAI Responses API not yet available in Go SDK v2 - this is a placeholder implementation")
+	return func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) (*responses.Response, error) {
+		return p.client.Responses.New(ctx, params, opts...)
 	}
+}
+
+func (p *provider) createStreamingCompletionFunc() StreamingCompletionFn {
+	return func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) *ssestream.Stream[responses.ResponseStreamEventUnion] {
+		return p.client.Responses.NewStreaming(ctx, params, opts...)
+	}
+}
+
+// extractDeltaFromEvent extracts delta information from streaming events
+func (p *provider) extractDeltaFromEvent(event responses.ResponseStreamEventUnion) *MessageDelta {
+	// TODO: Implement delta extraction from streaming events
+	// This would parse the streaming event and extract text deltas, tool call deltas, etc.
+	return nil
 }

@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"log/slog"
+
+	"github.com/openai/openai-go/v2/responses"
 )
 
 func Logger(l *slog.Logger) MiddlewareFunc {
-	return func(ctx context.Context, params ResponsesNewParams, next ResponsesCompletionFn) (*Response, error) {
+	return func(ctx context.Context, params responses.ResponseNewParams, next ResponsesCompletionFn) (*responses.Response, error) {
 		st := time.Now()
 		resp, err := next(ctx, params)
 		if err != nil {
@@ -19,14 +21,14 @@ func Logger(l *slog.Logger) MiddlewareFunc {
 		// Log basic completion info
 		l.LogAttrs(ctx, slog.LevelDebug, "executed responses completion",
 			slog.Duration("elapsed", time.Since(st)),
-			slog.String("model", params.Model),
-			slog.Bool("stream", params.Stream != nil && *params.Stream),
+			slog.String("model", string(params.Model)),
 		)
 		
 		// Log reasoning settings if configured
-		if params.IncludeReasoning != nil && *params.IncludeReasoning {
-			l.LogAttrs(ctx, slog.LevelDebug, "reasoning enabled",
-				slog.Bool("include_reasoning", true),
+		if params.Reasoning.Effort != "" || params.Reasoning.Summary != "" {
+			l.LogAttrs(ctx, slog.LevelDebug, "reasoning configured",
+				slog.String("effort", string(params.Reasoning.Effort)),
+				slog.String("summary", string(params.Reasoning.Summary)),
 			)
 		}
 		
