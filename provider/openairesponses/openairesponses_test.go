@@ -2,6 +2,7 @@ package openairesponses
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/rhettg/agent"
@@ -74,6 +75,11 @@ func TestMessageCopyWithReasoning(t *testing.T) {
 }
 
 func TestCompletionWithoutAPIKey(t *testing.T) {
+	// Skip this test by default to avoid making live API calls in CI
+	if os.Getenv("OPENAI_API_TEST") == "" {
+		t.Skip("Skipping live API test. Set OPENAI_API_TEST=1 to run.")
+	}
+	
 	p := New("", "gpt-4o-2024-08-06")
 
 	msgs := []*agent.Message{

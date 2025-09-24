@@ -154,7 +154,6 @@ func ExportMessagesToYAML(ctx context.Context, messages []*Message) (string, err
 		yamlMessage["Content"] = content
 
 		if len(m.imageData) > 0 {
-			yamlMessage["Images"] = make([]map[string]string, 0, len(m.imageData))
 			images := make([]interface{}, 0, len(m.imageData))
 			for _, img := range m.imageData {
 				dst := make([]byte, base64.StdEncoding.EncodedLen(len(img.Data)))

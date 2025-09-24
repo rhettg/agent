@@ -62,8 +62,8 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 				))
 			}
 			
-			// Add reasoning if present (encrypted reasoning is preserved for context)
-			if m.ReasoningEncryptedContent != "" || len(m.ReasoningSummaries) > 0 {
+			// Add reasoning if present (encrypted reasoning and summaries are preserved for context)
+			if m.ReasoningContent != "" || m.ReasoningEncryptedContent != "" || len(m.ReasoningSummaries) > 0 {
 				// Create reasoning summaries for input
 				var summaries []responses.ResponseReasoningItemSummaryParam
 				for _, summary := range m.ReasoningSummaries {
@@ -72,9 +72,29 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 					})
 				}
 				
-				// Use a generated ID for the reasoning item
-				reasoningID := fmt.Sprintf("reasoning_%d", len(items))
-				items = append(items, responses.ResponseInputItemParamOfReasoning(reasoningID, summaries))
+				// Create reasoning item with all available content
+				reasoningParam := responses.ResponseReasoningItemParam{
+					ID:      fmt.Sprintf("reasoning_%d", len(items)),
+					Summary: summaries,
+				}
+				
+				// Include encrypted content if available
+				if m.ReasoningEncryptedContent != "" {
+					reasoningParam.EncryptedContent = openai.String(m.ReasoningEncryptedContent)
+				}
+				
+				// Include plain text content if available
+				if m.ReasoningContent != "" {
+					reasoningParam.Content = []responses.ResponseReasoningItemContentParam{
+						{
+							Text: m.ReasoningContent,
+						},
+					}
+				}
+				
+				items = append(items, responses.ResponseInputItemUnionParam{
+					OfReasoning: &reasoningParam,
+				})
 			}
 
 		case agent.RoleTool:

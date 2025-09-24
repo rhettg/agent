@@ -268,13 +268,16 @@ if resp.Reasoning != nil {
 
 #### Reasoning in Messages
 
-The `Message` struct includes an optional `Reasoning` field that contains:
+The `Message` struct includes optional reasoning fields:
 
 ```go
-type Reasoning struct {
-    Content          string   // Plain reasoning text
-    EncryptedContent string   // Encrypted reasoning blob
-    Summaries        []string // Human-readable summaries
+type Message struct {
+    // ... other fields ...
+    
+    // Reasoning support (optional, primarily for assistant messages)
+    ReasoningContent          string   // Plain reasoning text
+    ReasoningEncryptedContent string   // Encrypted reasoning blob  
+    ReasoningSummaries        []string // Human-readable summaries
 }
 ```
 
