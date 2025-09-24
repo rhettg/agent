@@ -32,10 +32,3 @@ type MessageDelta struct {
 
 // MessageDeltaFunc is called for each streaming delta
 type MessageDeltaFunc func(ctx context.Context, delta MessageDelta)
-
-// Usage represents token usage information
-type Usage struct {
-	PromptTokens     int64
-	CompletionTokens int64
-	TotalTokens      int64
-}

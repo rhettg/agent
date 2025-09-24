@@ -14,11 +14,6 @@ import (
 
 const defaultTemperature = float64(1.0)
 
-// boolPtr returns a pointer to the given bool value
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 type provider struct {
 	client           openai.Client
 	temperature      float64
@@ -237,7 +232,38 @@ func (p *provider) createStreamingCompletionFunc() StreamingCompletionFn {
 
 // extractDeltaFromEvent extracts delta information from streaming events
 func (p *provider) extractDeltaFromEvent(event responses.ResponseStreamEventUnion) *MessageDelta {
-	// TODO: Implement delta extraction from streaming events
-	// This would parse the streaming event and extract text deltas, tool call deltas, etc.
+	// Handle text deltas
+	if textDelta := event.AsResponseOutputTextDelta(); textDelta.Type != "" {
+		return &MessageDelta{
+			Role:    "assistant",
+			Content: textDelta.Delta,
+		}
+	}
+	
+	// Handle function call argument deltas
+	if funcDelta := event.AsResponseFunctionCallArgumentsDelta(); funcDelta.Type != "" {
+		return &MessageDelta{
+			Role:              "assistant",
+			ToolCallID:        funcDelta.ItemID,
+			ToolCallArguments: funcDelta.Delta,
+		}
+	}
+	
+	// Handle reasoning text deltas
+	if reasoningDelta := event.AsResponseReasoningTextDelta(); reasoningDelta.Type != "" {
+		return &MessageDelta{
+			Role:             "assistant",
+			ReasoningContent: reasoningDelta.Delta,
+		}
+	}
+	
+	// Handle reasoning summary deltas
+	if reasoningSummaryDelta := event.AsResponseReasoningSummaryTextDelta(); reasoningSummaryDelta.Type != "" {
+		return &MessageDelta{
+			Role:             "assistant",
+			ReasoningSummary: reasoningSummaryDelta.Delta,
+		}
+	}
+	
 	return nil
 }

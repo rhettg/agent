@@ -231,12 +231,10 @@ Streaming works transparently with all middleware - the final response is still 
 The library includes support for OpenAI's Responses API, which provides access to the model's reasoning process. This allows you to see how the model thinks through problems step-by-step.
 
 ```go
-// Create a Responses API provider with plain reasoning enabled
+// Create a Responses API provider with reasoning enabled
 p := openairesponses.New(apiKey, "gpt-4o-2024-08-06",
-	openairesponses.WithReasoning(true),
-	openairesponses.WithEncryptedReasoning(false), // Use plain reasoning, not encrypted
-	openairesponses.WithReasoningSummary(true),
-	openairesponses.WithStore(false), // Don't store for privacy
+	openairesponses.WithReasoningEffort("medium"), // Set reasoning effort level
+	openairesponses.WithReasoningSummary("concise"), // Get concise reasoning summaries
 )
 
 a := agent.New(p)
@@ -265,10 +263,8 @@ if resp.Reasoning != nil {
 
 #### Reasoning Options
 
-- `WithReasoning(bool)`: Include plain text reasoning in responses
-- `WithEncryptedReasoning(bool)`: Include encrypted reasoning for privacy
-- `WithReasoningSummary(bool)`: Include human-readable reasoning summaries
-- `WithStore(bool)`: Whether to store the conversation server-side (default: false for privacy)
+- `WithReasoningEffort(effort)`: Set reasoning effort level. Accepted values: `"minimal"`, `"low"`, `"medium"`, `"high"`. Reducing effort results in faster responses and fewer tokens used on reasoning.
+- `WithReasoningSummary(summary)`: Set reasoning summary level. Accepted values: `"auto"`, `"concise"`, `"detailed"`. Provides a summary of the reasoning performed by the model.
 
 #### Reasoning in Messages
 
@@ -284,9 +280,7 @@ type Reasoning struct {
 
 Reasoning is preserved through message copying and middleware processing, allowing you to build complex workflows while maintaining access to the model's thought process.
 
-**Note**: The Responses API provider is currently a placeholder implementation waiting for official SDK support. Once OpenAI's Go SDK adds Responses API support, this provider will work seamlessly.
-
-**Streaming**: Streaming is not yet implemented for the Responses API provider. Using `WithMessageDeltaFunc` will cause completion requests to return an error until SDK support is available.
+**Note**: The Responses API provider is fully functional and uses OpenAI's official Go SDK v2 with complete Responses API support including streaming.
 
 See [example](./examples/responses/main.go)
 

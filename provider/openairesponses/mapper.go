@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/responses"
 	"github.com/rhettg/agent"
 )
@@ -36,9 +37,14 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 					contentParts = append(contentParts, responses.ResponseInputContentParamOfInputText(content))
 				}
 				for _, img := range m.Images() {
-					// TODO: Properly handle image data when we understand the correct API structure
-					_ = img // Suppress unused variable warning
-					contentParts = append(contentParts, responses.ResponseInputContentParamOfInputImage("auto"))
+					mimeType := mimeType(img.Name)
+					imageURL := encodeImageURL(mimeType, img.Data)
+					contentParts = append(contentParts, responses.ResponseInputContentUnionParam{
+						OfInputImage: &responses.ResponseInputImageParam{
+							Detail:   "auto",
+							ImageURL: openai.String(imageURL),
+						},
+					})
 				}
 				items = append(items, responses.ResponseInputItemParamOfMessage(contentParts, "user"))
 			}
