@@ -29,14 +29,9 @@ func main() {
 
 	fmt.Println("Making request to OpenAI Responses API...")
 	
-	// This will currently return an error since the SDK doesn't support Responses API yet
-	// But it demonstrates the intended usage
 	resp, err := a.Step(context.Background())
 	if err != nil {
-		fmt.Printf("Expected error (Responses API not yet available): %v\n", err)
-		fmt.Println("\nThis example demonstrates the intended usage of the Responses API provider.")
-		fmt.Println("Once OpenAI's Go SDK adds Responses API support, this will work seamlessly.")
-		return
+		log.Fatalf("error: %v", err)
 	}
 
 	content, err := resp.Content(context.Background())

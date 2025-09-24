@@ -2,13 +2,13 @@ package openairesponses
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"strings"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/responses"
 	"github.com/rhettg/agent"
+	"github.com/rhettg/agent/internal/imageutil"
 )
 
 // mapMessagesToInputItems converts Agent messages to OpenAI Responses API input items
@@ -37,8 +37,8 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 					contentParts = append(contentParts, responses.ResponseInputContentParamOfInputText(content))
 				}
 				for _, img := range m.Images() {
-					mimeType := mimeType(img.Name)
-					imageURL := encodeImageURL(mimeType, img.Data)
+					mimeType := imageutil.MimeType(img.Name)
+					imageURL := imageutil.EncodeImageURL(mimeType, img.Data)
 					contentParts = append(contentParts, responses.ResponseInputContentUnionParam{
 						OfInputImage: &responses.ResponseInputImageParam{
 							Detail:   "auto",
@@ -80,30 +80,36 @@ func (p *provider) mapResponseToMessage(resp *responses.Response) (*agent.Messag
 	// Create the message
 	msg := agent.NewContentMessage(agent.RoleAssistant, content)
 	
-	// TODO: Extract tool calls from response output if present
-	// TODO: Extract reasoning from response if present
+	// Extract reasoning and tool calls from response output items
+	for _, outputItem := range resp.Output {
+		// Extract reasoning
+		if reasoningItem := outputItem.AsReasoning(); reasoningItem.Type != "" {
+			if msg.Reasoning == nil {
+				msg.Reasoning = &agent.Reasoning{}
+			}
+			
+			// Extract reasoning content (text)
+			var contentParts []string
+			for _, contentItem := range reasoningItem.Content {
+				contentParts = append(contentParts, contentItem.Text)
+			}
+			if len(contentParts) > 0 {
+				msg.Reasoning.Content = strings.Join(contentParts, "\n")
+			}
+			
+			// Extract encrypted content if present
+			if reasoningItem.EncryptedContent != "" {
+				msg.Reasoning.EncryptedContent = reasoningItem.EncryptedContent
+			}
+			
+			// Extract reasoning summaries
+			for _, summaryItem := range reasoningItem.Summary {
+				msg.Reasoning.Summaries = append(msg.Reasoning.Summaries, summaryItem.Text)
+			}
+		}
+		
+		// TODO: Extract tool calls from response output if present
+	}
 	
 	return msg, nil
-}
-
-
-func mimeType(name string) string {
-	dot := strings.LastIndex(name, ".")
-	if dot == -1 || dot == len(name)-1 {
-		return "image/jpeg"
-	}
-	return "image/" + strings.ToLower(name[dot+1:])
-}
-
-func encodeImageURL(mimeType string, data []byte) string {
-	dst := make([]byte, base64.StdEncoding.EncodedLen(len(data)))
-	base64.StdEncoding.Encode(dst, data)
-
-	var imageURL strings.Builder
-	imageURL.WriteString("data:")
-	imageURL.WriteString(mimeType)
-	imageURL.WriteString(";base64,")
-	imageURL.Write(dst)
-
-	return imageURL.String()
 }

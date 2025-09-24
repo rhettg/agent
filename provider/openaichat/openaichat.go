@@ -2,7 +2,6 @@ package openaichat
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/shared"
 	"github.com/rhettg/agent"
+	"github.com/rhettg/agent/internal/imageutil"
 )
 
 type CreateCompletionFn func(context.Context, openai.ChatCompletionNewParams, ...option.RequestOption) (*openai.ChatCompletion, error)
@@ -229,8 +229,8 @@ func (p *provider) Completion(
 				}
 
 				for _, img := range m.Images() {
-					mimeType := mimeType(img.Name)
-					imageURL := encodeImageURL(mimeType, img.Data)
+					mimeType := imageutil.MimeType(img.Name)
+					imageURL := imageutil.EncodeImageURL(mimeType, img.Data)
 					content = append(content, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
 						URL: imageURL,
 					}))
@@ -328,34 +328,4 @@ func (p *provider) Completion(
 	}
 
 	return m, nil
-}
-
-func mimeType(name string) string {
-	dot := strings.LastIndex(name, ".")
-	if dot == -1 || dot == len(name)-1 {
-		// Just a guess
-		return "image/jpeg"
-	}
-
-	return "image/" + strings.ToLower(name[dot+1:])
-}
-
-func encodeImageURL(mimeType string, data []byte) string {
-	// Based on the python reference code in
-	// https://platform.openai.com/docs/guides/vision/uploading-base-64-encoded-images
-	// this should be the parallel of:
-	//     base64.b64encode(image_file.read()).decode('utf-8')
-	// which defaults to the standard base64 encoding.  I would have guessed
-	// it would be using the URL-safe encoding but that isn't what the code is
-	// saying.
-	dst := make([]byte, base64.StdEncoding.EncodedLen(len(data)))
-	base64.StdEncoding.Encode(dst, data)
-
-	image_url := strings.Builder{}
-	image_url.WriteString("data:")
-	image_url.WriteString(mimeType)
-	image_url.WriteString(";base64,")
-	image_url.Write(dst)
-
-	return image_url.String()
 }
