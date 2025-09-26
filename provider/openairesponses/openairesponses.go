@@ -21,7 +21,7 @@ type provider struct {
 	mw               []MiddlewareFunc
 	modelName        string
 	messageDeltaFunc MessageDeltaFunc
-	
+
 	// Responses API specific options
 	reasoningEffort  shared.ReasoningEffort
 	reasoningSummary shared.ReasoningSummary
@@ -82,7 +82,7 @@ func NewWithClient(client openai.Client, modelName string, opts ...Option) agent
 		client:      client,
 		modelName:   modelName,
 		temperature: defaultTemperature,
-		
+
 		// Default reasoning settings - use model defaults when not specified
 		reasoningEffort:  "", // Empty means use model default
 		reasoningSummary: "", // Empty means use model default
@@ -103,7 +103,7 @@ func (p *provider) Completion(
 	if err != nil {
 		return nil, fmt.Errorf("failed to map messages to input items: %w", err)
 	}
-	
+
 	// Convert tool definitions to function tools
 	var tools []responses.ToolUnionParam
 	for _, tdf := range tdfs {
@@ -113,26 +113,26 @@ func (p *provider) Completion(
 			false, // strict mode
 		))
 	}
-	
+
 	// Build the request parameters
 	params := responses.ResponseNewParams{
 		Model: shared.ResponsesModel(p.modelName),
 		Input: inputItems,
 	}
-	
+
 	// Set optional parameters
 	if p.temperature != 0 {
 		params.Temperature = openai.Float(p.temperature)
 	}
-	
+
 	if p.maxTokens != 0 {
 		params.MaxOutputTokens = openai.Int(int64(p.maxTokens))
 	}
-	
+
 	if len(tools) > 0 {
 		params.Tools = tools
 	}
-	
+
 	// Set reasoning options if specified
 	if p.reasoningEffort != "" || p.reasoningSummary != "" {
 		reasoning := shared.ReasoningParam{}
@@ -144,7 +144,7 @@ func (p *provider) Completion(
 		}
 		params.Reasoning = reasoning
 	}
-	
+
 	// Handle streaming vs non-streaming
 	if p.messageDeltaFunc != nil {
 		return p.streamCompletion(ctx, params)
@@ -163,12 +163,12 @@ func (p *provider) nonStreamCompletion(ctx context.Context, params responses.Res
 			return fm(ctx, params, next)
 		}
 	}
-	
+
 	resp, err := completionFn(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert response to Agent message
 	return p.mapResponseToMessage(resp)
 }
@@ -176,44 +176,49 @@ func (p *provider) nonStreamCompletion(ctx context.Context, params responses.Res
 func (p *provider) streamCompletion(ctx context.Context, params responses.ResponseNewParams) (*agent.Message, error) {
 	// Create streaming completion function
 	streamingFn := p.createStreamingCompletionFunc()
-	
+
 	// Get the stream
 	stream := streamingFn(ctx, params)
 	defer stream.Close()
-	
+
 	// Accumulate the response
 	var finalResponse *responses.Response
-	
+	var item responses.ResponseOutputItemUnion
+
 	for stream.Next() {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		
+
 		event := stream.Current()
-		
-		// Call the delta function if provided
-		if p.messageDeltaFunc != nil {
-			delta := p.extractDeltaFromEvent(event)
-			if delta != nil {
-				p.messageDeltaFunc(ctx, *delta)
-			}
+
+		switch event.Type {
+		case "response.output_item.added":
+			item = event.AsResponseOutputItemAdded().Item
+		case "response.output_item.done":
+			item = responses.ResponseOutputItemUnion{}
 		}
-		
+
+		delta := p.extractDeltaFromEvent(item, event)
+		if delta != nil && p.messageDeltaFunc != nil {
+			p.messageDeltaFunc(ctx, *delta)
+		}
+
 		// Check if this is the completion event
-		if completedEvent := event.AsResponseCompleted(); completedEvent.Type != "" {
+		if completedEvent := event.AsResponseCompleted(); completedEvent.Type == "response.completed" {
 			finalResponse = &completedEvent.Response
 			break
 		}
 	}
-	
+
 	if err := stream.Err(); err != nil {
 		return nil, err
 	}
-	
+
 	if finalResponse == nil {
 		return nil, fmt.Errorf("no final response received from stream")
 	}
-	
+
 	// Convert response to Agent message
 	return p.mapResponseToMessage(finalResponse)
 }
@@ -231,39 +236,55 @@ func (p *provider) createStreamingCompletionFunc() StreamingCompletionFn {
 }
 
 // extractDeltaFromEvent extracts delta information from streaming events
-func (p *provider) extractDeltaFromEvent(event responses.ResponseStreamEventUnion) *MessageDelta {
-	// Handle text deltas
-	if textDelta := event.AsResponseOutputTextDelta(); textDelta.Type != "" {
+func (p *provider) extractDeltaFromEvent(item responses.ResponseOutputItemUnion, event responses.ResponseStreamEventUnion) *MessageDelta {
+
+	switch event.Type {
+	case "response.output_text.delta":
+		textDelta := event.AsResponseOutputTextDelta()
 		return &MessageDelta{
 			Role:    "assistant",
 			Content: textDelta.Delta,
 		}
-	}
-	
-	// Handle function call argument deltas
-	if funcDelta := event.AsResponseFunctionCallArgumentsDelta(); funcDelta.Type != "" {
+	case "response.output_text.done":
 		return &MessageDelta{
-			Role:              "assistant",
-			ToolCallID:        funcDelta.ItemID,
-			ToolCallArguments: funcDelta.Delta,
+			Role: "assistant",
 		}
-	}
-	
-	// Handle reasoning text deltas
-	if reasoningDelta := event.AsResponseReasoningTextDelta(); reasoningDelta.Type != "" {
+	case "response.reasoning_text.delta":
+		reasoningDelta := event.AsResponseReasoningTextDelta()
 		return &MessageDelta{
 			Role:             "assistant",
 			ReasoningContent: reasoningDelta.Delta,
 		}
-	}
-	
-	// Handle reasoning summary deltas
-	if reasoningSummaryDelta := event.AsResponseReasoningSummaryTextDelta(); reasoningSummaryDelta.Type != "" {
+	case "response.reasoning_text.done":
+		return &MessageDelta{
+			Role: "assistant",
+		}
+	case "response.reasoning_summary_text.delta":
+		reasoningSummaryDelta := event.AsResponseReasoningSummaryTextDelta()
 		return &MessageDelta{
 			Role:             "assistant",
 			ReasoningSummary: reasoningSummaryDelta.Delta,
 		}
+	case "response.reasoning_summary_text.done":
+		return &MessageDelta{
+			Role: "assistant",
+		}
+	case "response.function_call_arguments.delta":
+		toolCallDelta := event.AsResponseFunctionCallArgumentsDelta()
+		return &MessageDelta{
+			Role:              "assistant",
+			ToolCallID:        item.CallID,
+			ToolCallName:      item.Name,
+			ToolCallArguments: toolCallDelta.Delta,
+		}
+	case "response.function_call_arguments.done":
+		return &MessageDelta{
+			Role:         "assistant",
+			ToolCallID:   item.CallID,
+			ToolCallName: item.Name,
+		}
+	default:
+		//fmt.Println("unhandled event type: ", event.Type)
+		return nil
 	}
-	
-	return nil
 }

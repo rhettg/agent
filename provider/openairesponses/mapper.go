@@ -14,7 +14,7 @@ import (
 // mapMessagesToInputItems converts Agent messages to OpenAI Responses API input items
 func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Message) (responses.ResponseNewParamsInputUnion, error) {
 	var items []responses.ResponseInputItemUnionParam
-	
+
 	for _, m := range msgs {
 		content, err := m.Content(ctx)
 		if err != nil {
@@ -52,7 +52,7 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 		case agent.RoleAssistant:
 			// Add the assistant message
 			items = append(items, responses.ResponseInputItemParamOfMessage(content, "assistant"))
-			
+
 			// Add tool calls if present
 			for _, toolCall := range m.ToolCalls {
 				items = append(items, responses.ResponseInputItemParamOfFunctionCall(
@@ -61,7 +61,7 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 					toolCall.Name,
 				))
 			}
-			
+
 			// Add reasoning if present (encrypted reasoning and summaries are preserved for context)
 			if m.ReasoningContent != "" || m.ReasoningEncryptedContent != "" || len(m.ReasoningSummaries) > 0 {
 				// Create reasoning summaries for input
@@ -71,18 +71,18 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 						Text: summary,
 					})
 				}
-				
+
 				// Create reasoning item with all available content
 				reasoningParam := responses.ResponseReasoningItemParam{
 					ID:      fmt.Sprintf("reasoning_%d", len(items)),
 					Summary: summaries,
 				}
-				
+
 				// Include encrypted content if available
 				if m.ReasoningEncryptedContent != "" {
 					reasoningParam.EncryptedContent = openai.String(m.ReasoningEncryptedContent)
 				}
-				
+
 				// Include plain text content if available
 				if m.ReasoningContent != "" {
 					reasoningParam.Content = []responses.ResponseReasoningItemContentParam{
@@ -91,7 +91,7 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 						},
 					}
 				}
-				
+
 				items = append(items, responses.ResponseInputItemUnionParam{
 					OfReasoning: &reasoningParam,
 				})
@@ -105,7 +105,7 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 			))
 		}
 	}
-	
+
 	return responses.ResponseNewParamsInputUnion{
 		OfInputItemList: items,
 	}, nil
@@ -115,14 +115,14 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 func (p *provider) mapResponseToMessage(resp *responses.Response) (*agent.Message, error) {
 	// Get the text content from the response
 	content := resp.OutputText()
-	
+
 	// Create the message
 	msg := agent.NewContentMessage(agent.RoleAssistant, content)
-	
+
 	// Extract reasoning and tool calls from response output items
 	for _, outputItem := range resp.Output {
 		// Extract reasoning
-		if reasoningItem := outputItem.AsReasoning(); reasoningItem.Type != "" {
+		if reasoningItem := outputItem.AsReasoning(); reasoningItem.Type == "reasoning" {
 			// Extract reasoning content (text)
 			var contentParts []string
 			for _, contentItem := range reasoningItem.Content {
@@ -131,20 +131,20 @@ func (p *provider) mapResponseToMessage(resp *responses.Response) (*agent.Messag
 			if len(contentParts) > 0 {
 				msg.ReasoningContent = strings.Join(contentParts, "\n")
 			}
-			
+
 			// Extract encrypted content if present
 			if reasoningItem.EncryptedContent != "" {
 				msg.ReasoningEncryptedContent = reasoningItem.EncryptedContent
 			}
-			
+
 			// Extract reasoning summaries
 			for _, summaryItem := range reasoningItem.Summary {
 				msg.ReasoningSummaries = append(msg.ReasoningSummaries, summaryItem.Text)
 			}
 		}
-		
+
 		// Extract tool calls
-		if functionCall := outputItem.AsFunctionCall(); functionCall.Type != "" {
+		if functionCall := outputItem.AsFunctionCall(); functionCall.Type == "function_call" {
 			msg.ToolCalls = append(msg.ToolCalls, agent.ToolCall{
 				ID:        functionCall.CallID,
 				Name:      functionCall.Name,
@@ -152,6 +152,6 @@ func (p *provider) mapResponseToMessage(resp *responses.Response) (*agent.Messag
 			})
 		}
 	}
-	
+
 	return msg, nil
 }
