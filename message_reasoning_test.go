@@ -32,7 +32,7 @@ func TestYAMLExportImportWithReasoning(t *testing.T) {
 
 	importedMsg := importedMessages[0]
 	assert.Equal(t, RoleAssistant, importedMsg.Role)
-	
+
 	content, err := importedMsg.Content(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "The sky is blue because of light scattering.", content)
@@ -60,7 +60,7 @@ func TestYAMLExportImportWithoutReasoning(t *testing.T) {
 
 	importedMsg := importedMessages[0]
 	assert.Equal(t, RoleUser, importedMsg.Role)
-	
+
 	content, err := importedMsg.Content(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "Hello!", content)

@@ -25,7 +25,7 @@ type Message struct {
 	Name string
 
 	// Tool calling support
-	ToolCalls []ToolCall  // Only for assistant messages
+	ToolCalls  []ToolCall // Only for assistant messages
 	ToolCallID string     // Only for tool response messages
 
 	// Reasoning support (optional, primarily for assistant messages)
@@ -205,25 +205,25 @@ func ImportMessagesFromYAML(yamlString string) ([]*Message, error) {
 	var messages []*Message
 	for _, ym := range yamlMessages {
 		msg := newMessage()
-		
+
 		// Safely extract role
 		if roleVal, ok := ym["Role"].(string); ok {
 			msg.Role = Role(roleVal)
 		} else {
 			continue // Skip malformed messages
 		}
-		
+
 		// Safely extract content
 		if contentVal, ok := ym["Content"].(string); ok {
 			msg.content = contentVal
 		} else {
 			msg.content = "" // Default to empty content
 		}
-		
+
 		// Import reasoning if present - try both possible map types for robustness
 		if reasoningRaw, exists := ym["Reasoning"]; exists {
 			var reasoningData map[string]interface{}
-			
+
 			// Try string-keyed map first, then interface-keyed map
 			if stringMap, ok := reasoningRaw.(map[string]interface{}); ok {
 				reasoningData = stringMap
@@ -236,7 +236,7 @@ func ImportMessagesFromYAML(yamlString string) ([]*Message, error) {
 					}
 				}
 			}
-			
+
 			if reasoningData != nil {
 				if content, ok := reasoningData["content"].(string); ok {
 					msg.ReasoningContent = content
@@ -253,7 +253,7 @@ func ImportMessagesFromYAML(yamlString string) ([]*Message, error) {
 				}
 			}
 		}
-		
+
 		messages = append(messages, msg)
 	}
 
