@@ -20,3 +20,4 @@ examples/responses/responses
 examples/llmfs/llmfs
 examples/middleware/middleware
 examples/vision/vision
+.env
