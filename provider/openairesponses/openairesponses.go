@@ -6,7 +6,6 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
-	"github.com/openai/openai-go/v2/packages/ssestream"
 	"github.com/openai/openai-go/v2/responses"
 	"github.com/openai/openai-go/v2/shared"
 	"github.com/rhettg/agent"
@@ -98,13 +97,11 @@ func NewWithClient(client openai.Client, modelName string, opts ...Option) agent
 func (p *provider) Completion(
 	ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef,
 ) (*agent.Message, error) {
-	// Convert messages to input items for Responses API
 	inputItems, err := p.mapMessagesToInputItems(ctx, msgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map messages to input items: %w", err)
 	}
 
-	// Convert tool definitions to function tools
 	var tools []responses.ToolUnionParam
 	for _, tdf := range tdfs {
 		params, ok := tdf.Parameters.(map[string]any)
@@ -118,13 +115,11 @@ func (p *provider) Completion(
 		))
 	}
 
-	// Build the request parameters
 	params := responses.ResponseNewParams{
 		Model: shared.ResponsesModel(p.modelName),
 		Input: inputItems,
 	}
 
-	// Set optional parameters
 	if p.temperature != nil {
 		params.Temperature = openai.Float(*p.temperature)
 	}
@@ -137,7 +132,6 @@ func (p *provider) Completion(
 		params.Tools = tools
 	}
 
-	// Set reasoning options if specified
 	if p.reasoningEffort != "" || p.reasoningSummary != "" {
 		reasoning := shared.ReasoningParam{}
 		if p.reasoningEffort != "" {
@@ -149,40 +143,20 @@ func (p *provider) Completion(
 		params.Reasoning = reasoning
 	}
 
-	// Handle streaming vs non-streaming
-	if p.messageDeltaFunc != nil {
-		return p.streamCompletion(ctx, params)
-	} else {
-		return p.nonStreamCompletion(ctx, params)
-	}
-}
-
-func (p *provider) nonStreamCompletion(ctx context.Context, params responses.ResponseNewParams) (*agent.Message, error) {
-	// Assemble the middleware chain
 	completionFn := p.createCompletionFunc()
-	for _, m := range p.mw {
-		next := completionFn
-		fm := m
-		completionFn = func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) (*responses.Response, error) {
-			return fm(ctx, params, next)
-		}
-	}
 
 	resp, err := completionFn(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert response to Agent message
 	return p.mapResponseToMessage(resp)
 }
 
-func (p *provider) streamCompletion(ctx context.Context, params responses.ResponseNewParams) (*agent.Message, error) {
-	// Create streaming completion function
-	streamingFn := p.createStreamingCompletionFunc()
-
-	// Get the stream
-	stream := streamingFn(ctx, params)
+// doStreaming performs streaming internally but returns the final response
+// This allows middleware to be applied while still maintaining streaming behavior
+func (p *provider) doStreaming(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) (*responses.Response, error) {
+	stream := p.client.Responses.NewStreaming(ctx, params, opts...)
 	defer stream.Close()
 
 	// Accumulate the response
@@ -204,11 +178,13 @@ func (p *provider) streamCompletion(ctx context.Context, params responses.Respon
 		}
 
 		delta := p.extractDeltaFromEvent(item, event)
+
 		if delta != nil && p.messageDeltaFunc != nil {
 			p.messageDeltaFunc(ctx, *delta)
 		}
 
-		// Check if this is the completion event
+		// The fully constructed response comes as an event that we want to
+		// collect as the return value.
 		if completedEvent := event.AsResponseCompleted(); completedEvent.Type == "response.completed" {
 			finalResponse = &completedEvent.Response
 			break
@@ -223,25 +199,30 @@ func (p *provider) streamCompletion(ctx context.Context, params responses.Respon
 		return nil, fmt.Errorf("no final response received from stream")
 	}
 
-	// Convert response to Agent message
-	return p.mapResponseToMessage(finalResponse)
+	return finalResponse, nil
 }
 
 func (p *provider) createCompletionFunc() ResponsesCompletionFn {
-	return func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) (*responses.Response, error) {
-		return p.client.Responses.New(ctx, params, opts...)
+	var completionFn ResponsesCompletionFn
+	if p.messageDeltaFunc != nil {
+		completionFn = p.doStreaming
+	} else {
+		completionFn = p.client.Responses.New
 	}
-}
 
-func (p *provider) createStreamingCompletionFunc() StreamingCompletionFn {
-	return func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) *ssestream.Stream[responses.ResponseStreamEventUnion] {
-		return p.client.Responses.NewStreaming(ctx, params, opts...)
+	for _, m := range p.mw {
+		next := completionFn
+		fm := m
+		completionFn = func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) (*responses.Response, error) {
+			return fm(ctx, params, next)
+		}
 	}
+
+	return completionFn
 }
 
 // extractDeltaFromEvent extracts delta information from streaming events
 func (p *provider) extractDeltaFromEvent(item responses.ResponseOutputItemUnion, event responses.ResponseStreamEventUnion) *MessageDelta {
-
 	switch event.Type {
 	case "response.output_text.delta":
 		textDelta := event.AsResponseOutputTextDelta()
