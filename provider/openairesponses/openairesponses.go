@@ -16,7 +16,7 @@ const defaultTemperature = float64(1.0)
 
 type provider struct {
 	client           openai.Client
-	temperature      float64
+	temperature      *float64 // Use pointer to distinguish between unset and 0
 	maxTokens        int
 	mw               []MiddlewareFunc
 	modelName        string
@@ -37,7 +37,7 @@ func WithMiddleware(m MiddlewareFunc) Option {
 
 func WithTemperature(t float64) Option {
 	return func(p *provider) {
-		p.temperature = t
+		p.temperature = &t
 	}
 }
 
@@ -81,7 +81,7 @@ func NewWithClient(client openai.Client, modelName string, opts ...Option) agent
 	p := &provider{
 		client:      client,
 		modelName:   modelName,
-		temperature: defaultTemperature,
+		temperature: nil, // nil means use model default
 
 		// Default reasoning settings - use model defaults when not specified
 		reasoningEffort:  "", // Empty means use model default
@@ -121,8 +121,8 @@ func (p *provider) Completion(
 	}
 
 	// Set optional parameters
-	if p.temperature != 0 {
-		params.Temperature = openai.Float(p.temperature)
+	if p.temperature != nil {
+		params.Temperature = openai.Float(*p.temperature)
 	}
 
 	if p.maxTokens != 0 {
