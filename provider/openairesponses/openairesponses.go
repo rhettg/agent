@@ -107,9 +107,13 @@ func (p *provider) Completion(
 	// Convert tool definitions to function tools
 	var tools []responses.ToolUnionParam
 	for _, tdf := range tdfs {
+		params, ok := tdf.Parameters.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("tool %s has invalid parameters type: expected map[string]any, got %T", tdf.Name, tdf.Parameters)
+		}
 		tools = append(tools, responses.ToolParamOfFunction(
 			tdf.Name,
-			tdf.Parameters.(map[string]any),
+			params,
 			false, // strict mode
 		))
 	}

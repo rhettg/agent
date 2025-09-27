@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/openai/openai-go/v2/responses"
 	"github.com/rhettg/agent"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,4 +91,88 @@ func TestCompletionWithoutAPIKey(t *testing.T) {
 	_, err := p(context.Background(), msgs, nil)
 	assert.Error(t, err)
 	// The exact error will depend on the OpenAI SDK's validation
+}
+
+// TestTemperatureZero tests that temperature can be explicitly set to 0
+func TestTemperatureZero(t *testing.T) {
+	p := &provider{
+		modelName:   "gpt-4o-2024-08-06", 
+		temperature: nil, // default is nil (use model default)
+	}
+
+	// Test that WithTemperature(0) should actually set temperature to 0
+	WithTemperature(0)(p)
+	require.NotNil(t, p.temperature)
+	assert.Equal(t, 0.0, *p.temperature)
+
+	// Test non-zero temperature
+	WithTemperature(0.7)(p)
+	require.NotNil(t, p.temperature)
+	assert.Equal(t, 0.7, *p.temperature)
+}
+
+// TestStreamingEventCorrelation tests potential issues with streaming event correlation
+func TestStreamingEventCorrelation(t *testing.T) {
+	p := &provider{}
+	
+	// Create mock events that could cause correlation issues
+	var mockItem responses.ResponseOutputItemUnion
+	
+	// Test delta extraction with empty item (simulating missing output_item.added)
+	mockEvent := responses.ResponseStreamEventUnion{
+		// In a real scenario, this would be a function_call_arguments.delta event
+		Type: "response.function_call_arguments.delta",
+	}
+	
+	delta := p.extractDeltaFromEvent(mockItem, mockEvent)
+	
+	// This should handle empty item gracefully
+	// The current implementation might return empty ToolCallID/Name which could be problematic
+	if delta != nil {
+		// If we get a delta but ToolCallID/Name are empty, that's a potential issue
+		t.Logf("Delta ToolCallID: %q, ToolCallName: %q", delta.ToolCallID, delta.ToolCallName)
+		// In real usage, empty IDs/Names would make it impossible for consumers 
+		// to correlate deltas with tool calls
+		assert.Empty(t, delta.ToolCallID, "Expected empty ToolCallID with unset item")
+		assert.Empty(t, delta.ToolCallName, "Expected empty ToolCallName with unset item")
+	}
+}
+
+// TestToolParametersTypeAssertion tests the tool parameter type assertion
+func TestToolParametersTypeAssertion(t *testing.T) {
+	p := &provider{modelName: "test"}
+
+	// Test with correct parameters type
+	validTool := agent.ToolDef{
+		Name:        "test_tool",
+		Description: "A test tool",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"message": map[string]any{"type": "string"},
+			},
+		},
+	}
+
+	msgs := []*agent.Message{
+		agent.NewContentMessage(agent.RoleUser, "test"),
+	}
+
+	// This should not panic
+	_, err := p.Completion(context.Background(), msgs, []agent.ToolDef{validTool})
+	// We expect an error due to no API key, but not a panic from type assertion
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), "invalid parameters type")
+
+	// Test with incorrect parameters type
+	invalidTool := agent.ToolDef{
+		Name:        "bad_tool",
+		Description: "A tool with wrong parameter type",
+		Parameters:  "not a map", // This should cause the type assertion to fail gracefully
+	}
+
+	_, err = p.Completion(context.Background(), msgs, []agent.ToolDef{invalidTool})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid parameters type")
+	assert.Contains(t, err.Error(), "expected map[string]any, got string")
 }
