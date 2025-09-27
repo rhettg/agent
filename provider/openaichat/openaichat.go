@@ -198,9 +198,9 @@ func (p *provider) stream(ctx context.Context, params openai.ChatCompletionNewPa
 	result.Choices[0].Message.Content = contentBuilder.String()
 
 	// Set final tool call arguments from builders
-	for i, tc := range result.Choices[0].Message.ToolCalls {
+	for i := range result.Choices[0].Message.ToolCalls {
 		if builder, exists := toolCallArgBuilders[i]; exists {
-			tc.Function.Arguments = builder.String()
+			result.Choices[0].Message.ToolCalls[i].Function.Arguments = builder.String()
 		}
 	}
 
