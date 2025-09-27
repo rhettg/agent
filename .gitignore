@@ -17,6 +17,7 @@ go.work
 # Build artifacts
 examples/*/main
 examples/responses/responses
+examples/responses-tools/responses-tools
 examples/llmfs/llmfs
 examples/middleware/middleware
 examples/vision/vision
