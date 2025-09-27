@@ -81,7 +81,109 @@ func NewWithClient(client openai.Client, modelName string, opts ...Option) agent
 	return p.Completion
 }
 
-func (p *provider) stream(ctx context.Context, params openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {
+func (p *provider) createCompletionFunc() CreateCompletionFn {
+	var completionFn CreateCompletionFn
+	if p.messageDeltaFunc != nil {
+		completionFn = p.doStreamingCompletion
+	} else {
+		completionFn = p.client.Chat.Completions.New
+	}
+
+	for _, m := range p.mw {
+		next := completionFn
+		fm := m
+		completionFn = func(ctx context.Context, params openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {
+			return fm(ctx, params, next)
+		}
+	}
+
+	return completionFn
+}
+
+func (p *provider) mapResponseToMessage(resp *openai.ChatCompletion) (*agent.Message, error) {
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("no completion returned")
+	}
+
+	rMsg := resp.Choices[0].Message
+	m := agent.NewContentMessage(agent.Role(rMsg.Role), rMsg.Content)
+
+	if len(rMsg.ToolCalls) > 0 {
+		// Populate the new ToolCalls field with all tool calls
+		m.ToolCalls = make([]agent.ToolCall, len(rMsg.ToolCalls))
+		for i, tc := range rMsg.ToolCalls {
+			m.ToolCalls[i] = agent.ToolCall{
+				ID:        tc.ID,
+				Name:      tc.Function.Name,
+				Arguments: tc.Function.Arguments,
+			}
+		}
+	}
+
+	return m, nil
+}
+
+func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Message) ([]openai.ChatCompletionMessageParamUnion, error) {
+	pMsgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
+	for _, m := range msgs {
+		c, err := m.Content(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get message content: %w", err)
+		}
+
+		switch m.Role {
+		case agent.RoleSystem:
+			pMsgs = append(pMsgs, openai.SystemMessage(c))
+		case agent.RoleUser:
+			if len(m.Images()) > 0 {
+				// Handle multimodal content
+				content := make([]openai.ChatCompletionContentPartUnionParam, 0)
+				if c != "" {
+					content = append(content, openai.TextContentPart(c))
+				}
+
+				for _, img := range m.Images() {
+					mimeType := imageutil.MimeType(img.Name)
+					imageURL := imageutil.EncodeImageURL(mimeType, img.Data)
+					content = append(content, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
+						URL: imageURL,
+					}))
+				}
+
+				pMsgs = append(pMsgs, openai.UserMessage(content))
+			} else {
+				pMsgs = append(pMsgs, openai.UserMessage(c))
+			}
+		case agent.RoleAssistant:
+			aMsg := openai.AssistantMessage(c)
+			// The len 0 aMsg.OfAssistant.ToolCalls sends as an empty list due
+			// to "omitzero" rather than "omitempty" in sdk 2
+			if len(m.ToolCalls) > 0 {
+				aMsg.OfAssistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnionParam, len(m.ToolCalls))
+				for i, tc := range m.ToolCalls {
+					aMsg.OfAssistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallUnionParam{
+						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+							ID: tc.ID,
+							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+								Name:      tc.Name,
+								Arguments: tc.Arguments,
+							},
+							Type: "function",
+						},
+					}
+				}
+			}
+			pMsgs = append(pMsgs, aMsg)
+		case agent.RoleTool:
+			// For tool responses, we need the tool call ID
+			toolID := m.ToolCallID
+			pMsgs = append(pMsgs, openai.ToolMessage(c, toolID))
+		}
+	}
+	return pMsgs, nil
+}
+
+func (p *provider) doStreamingCompletion(ctx context.Context, params openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {
 	stream := p.client.Chat.Completions.NewStreaming(ctx, params, opts...)
 	defer stream.Close()
 
@@ -111,6 +213,7 @@ func (p *provider) stream(ctx context.Context, params openai.ChatCompletionNewPa
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+
 		evt := stream.Current()
 
 		// Set metadata from first event
@@ -210,61 +313,10 @@ func (p *provider) stream(ctx context.Context, params openai.ChatCompletionNewPa
 func (p *provider) Completion(
 	ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef,
 ) (*agent.Message, error) {
-	pMsgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
-	for _, m := range msgs {
-		c, err := m.Content(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get message content: %w", err)
-		}
-
-		switch m.Role {
-		case agent.RoleSystem:
-			pMsgs = append(pMsgs, openai.SystemMessage(c))
-		case agent.RoleUser:
-			if len(m.Images()) > 0 {
-				// Handle multimodal content
-				content := make([]openai.ChatCompletionContentPartUnionParam, 0)
-				if c != "" {
-					content = append(content, openai.TextContentPart(c))
-				}
-
-				for _, img := range m.Images() {
-					mimeType := imageutil.MimeType(img.Name)
-					imageURL := imageutil.EncodeImageURL(mimeType, img.Data)
-					content = append(content, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
-						URL: imageURL,
-					}))
-				}
-
-				pMsgs = append(pMsgs, openai.UserMessage(content))
-			} else {
-				pMsgs = append(pMsgs, openai.UserMessage(c))
-			}
-		case agent.RoleAssistant:
-			aMsg := openai.AssistantMessage(c)
-			// The len 0 aMsg.OfAssistant.ToolCalls sends as an empty list due
-			// to "omitzero" rather than "omitempty" in sdk 2
-			if len(m.ToolCalls) > 0 {
-				aMsg.OfAssistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnionParam, len(m.ToolCalls))
-				for i, tc := range m.ToolCalls {
-					aMsg.OfAssistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallUnionParam{
-						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
-							ID: tc.ID,
-							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
-								Name:      tc.Name,
-								Arguments: tc.Arguments,
-							},
-							Type: "function",
-						},
-					}
-				}
-			}
-			pMsgs = append(pMsgs, aMsg)
-		case agent.RoleTool:
-			// For tool responses, we need the tool call ID
-			toolID := m.ToolCallID
-			pMsgs = append(pMsgs, openai.ToolMessage(c, toolID))
-		}
+	// Convert messages to OpenAI format
+	pMsgs, err := p.mapMessagesToInputItems(ctx, msgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map messages to input items: %w", err)
 	}
 
 	tools := make([]openai.ChatCompletionToolUnionParam, 0, len(tdfs))
@@ -295,39 +347,12 @@ func (p *provider) Completion(
 		params.Temperature = openai.Float(p.temperature)
 	}
 
-	// Assemble the middleware chain
-	c := p.stream
-	for _, m := range p.mw {
-		next := c
-		fm := m
-		c = func(ctx context.Context, params openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {
-			return fm(ctx, params, next)
-		}
-	}
+	completionFn := p.createCompletionFunc()
 
-	resp, err := c(ctx, params)
+	resp, err := completionFn(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no completion returned")
-	}
-
-	rMsg := resp.Choices[0].Message
-	m := agent.NewContentMessage(agent.Role(rMsg.Role), rMsg.Content)
-
-	if len(rMsg.ToolCalls) > 0 {
-		// Populate the new ToolCalls field with all tool calls
-		m.ToolCalls = make([]agent.ToolCall, len(rMsg.ToolCalls))
-		for i, tc := range rMsg.ToolCalls {
-			m.ToolCalls[i] = agent.ToolCall{
-				ID:        tc.ID,
-				Name:      tc.Function.Name,
-				Arguments: tc.Function.Arguments,
-			}
-		}
-	}
-
-	return m, nil
+	return p.mapResponseToMessage(resp)
 }
