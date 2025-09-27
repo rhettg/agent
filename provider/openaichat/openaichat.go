@@ -242,17 +242,21 @@ func (p *provider) Completion(
 			}
 		case agent.RoleAssistant:
 			aMsg := openai.AssistantMessage(c)
-			aMsg.OfAssistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnionParam, len(m.ToolCalls))
-			for i, tc := range m.ToolCalls {
-				aMsg.OfAssistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallUnionParam{
-					OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
-						ID: tc.ID,
-						Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
-							Name:      tc.Name,
-							Arguments: tc.Arguments,
+			// The len 0 aMsg.OfAssistant.ToolCalls sends as an empty list due
+			// to "omitzero" rather than "omitempty" in sdk 2
+			if len(m.ToolCalls) > 0 {
+				aMsg.OfAssistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnionParam, len(m.ToolCalls))
+				for i, tc := range m.ToolCalls {
+					aMsg.OfAssistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallUnionParam{
+						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+							ID: tc.ID,
+							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+								Name:      tc.Name,
+								Arguments: tc.Arguments,
+							},
+							Type: "function",
 						},
-						Type: "function",
-					},
+					}
 				}
 			}
 			pMsgs = append(pMsgs, aMsg)
@@ -265,15 +269,13 @@ func (p *provider) Completion(
 
 	tools := make([]openai.ChatCompletionToolUnionParam, 0, len(tdfs))
 	for _, fd := range tdfs {
-		tools = append(tools, openai.ChatCompletionToolUnionParam{
-			OfFunction: &openai.ChatCompletionFunctionToolParam{
-				Function: shared.FunctionDefinitionParam{
-					Name:        fd.Name,
-					Description: openai.String(fd.Description),
-					Parameters:  shared.FunctionParameters(fd.Parameters.(map[string]any)),
-				},
+		tools = append(tools, openai.ChatCompletionFunctionTool(
+			openai.FunctionDefinitionParam{
+				Name:        fd.Name,
+				Description: openai.String(fd.Description),
+				Parameters:  openai.FunctionParameters(fd.Parameters.(map[string]any)),
 			},
-		})
+		))
 	}
 
 	params := openai.ChatCompletionNewParams{
