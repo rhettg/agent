@@ -15,7 +15,11 @@ type Image struct {
 	Data []byte
 }
 
+type Attributes map[string]string
+
 type Message struct {
+	Attributes
+
 	Role    Role
 	content string
 
@@ -34,7 +38,6 @@ type Message struct {
 	ReasoningSummaries        []string `json:"reasoning_summaries,omitempty"`         // human-readable summaries
 
 	contentFn ContentFn
-	attrs     map[string]string
 }
 
 func (m *Message) Content(ctx context.Context) (string, error) {
@@ -54,29 +57,29 @@ func (m *Message) AddImage(name string, data []byte) {
 	m.imageData = append(m.imageData, Image{Name: name, Data: data})
 }
 
-func (m *Message) SetAttr(key, value string) {
-	m.attrs[key] = value
+func (a Attributes) SetAttr(key, value string) {
+	a[key] = value
 }
 
-func (m *Message) GetAttr(key string) string {
-	return m.attrs[key]
+func (a Attributes) GetAttr(key string) string {
+	return a[key]
 }
 
-func (m *Message) Tag(key string) {
-	m.attrs[key] = ""
+func (a Attributes) Tag(key string) {
+	a[key] = "tag"
 }
 
-func (m *Message) ClearTag(key string) {
-	delete(m.attrs, key)
+func (a Attributes) ClearTag(key string) {
+	delete(a, key)
 }
 
-func (m *Message) HasTag(key string) bool {
-	_, ok := m.attrs[key]
+func (a Attributes) HasTag(key string) bool {
+	_, ok := a[key]
 	return ok
 }
 
 func newMessage() *Message {
-	return &Message{attrs: make(map[string]string)}
+	return &Message{Attributes: make(Attributes)}
 }
 
 func NewContentMessage(role Role, content string) *Message {
@@ -122,8 +125,8 @@ func NewMessageFromMessage(m *Message) *Message {
 		copy(nm.ReasoningSummaries, m.ReasoningSummaries)
 	}
 
-	for k, v := range m.attrs {
-		nm.attrs[k] = v
+	for k, v := range m.Attributes {
+		nm.Attributes[k] = v
 	}
 	return nm
 }
@@ -183,7 +186,7 @@ func ExportMessagesToYAML(ctx context.Context, messages []*Message) (string, err
 		}
 
 		// TODO: Functions
-		// TODO: attrs
+		// TODO: Attributes
 
 		yamlMessages[i] = yamlMessage
 	}

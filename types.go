@@ -18,6 +18,11 @@ type MiddlewareFunc func(nextStep CompletionFunc) CompletionFunc
 
 type Tool func(context.Context, string) (string, error)
 
+// AttributesTool is a tool that, in addition to accepting and returning a string, can set Message Attributes
+// This is helpful for tools that need to interact with the larger Agent loop in
+// a way that a simple string response can't support
+type AttributesTool func(context.Context, Attributes, string) (string, error)
+
 type ToolCall struct {
 	ID        string
 	Name      string

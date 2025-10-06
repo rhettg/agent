@@ -9,6 +9,7 @@ import (
 
 type Tools struct {
 	fns  map[string]agent.Tool
+	afns map[string]agent.AttributesTool
 	defs []agent.ToolDef
 }
 
@@ -23,26 +24,55 @@ func (f *Tools) Add(name, description string, parameters any, fn agent.Tool) {
 	f.fns[name] = fn
 }
 
+func (f *Tools) AddAttributesTool(name, description string, parameters any, fn agent.AttributesTool) {
+	def := agent.ToolDef{
+		Name:        name,
+		Description: description,
+		Parameters:  parameters,
+	}
+
+	f.defs = append(f.defs, def)
+	f.afns[name] = fn
+}
+
 func (f *Tools) AddTools(fs *Tools) {
 	for _, def := range fs.defs {
-		f.Add(def.Name, def.Description, def.Parameters, f.fns[def.Name])
+		if fn, ok := fs.afns[def.Name]; ok {
+			f.AddAttributesTool(def.Name, def.Description, def.Parameters, fn)
+		} else {
+			f.Add(def.Name, def.Description, def.Parameters, f.fns[def.Name])
+		}
 	}
 }
 
 func (f *Tools) call(ctx context.Context, toolCall *agent.ToolCall) (*agent.Message, error) {
-	fn, ok := f.fns[toolCall.Name]
-	if !ok {
-		m := agent.NewContentMessage(agent.RoleTool, fmt.Sprintf("tool not found: %s", toolCall.Name))
+	if fn, ok := f.fns[toolCall.Name]; ok {
+		resp, err := fn(ctx, toolCall.Arguments)
+		if err != nil {
+			return nil, err
+		}
+
+		m := agent.NewContentMessage(agent.RoleTool, resp)
 		m.ToolCallID = toolCall.ID
+
 		return m, nil
 	}
 
-	resp, err := fn(ctx, toolCall.Arguments)
-	if err != nil {
-		return nil, err
+	if fn, ok := f.afns[toolCall.Name]; ok {
+		attrs := agent.Attributes{}
+		resp, err := fn(ctx, attrs, toolCall.Arguments)
+		if err != nil {
+			return nil, err
+		}
+
+		m := agent.NewContentMessage(agent.RoleTool, resp)
+		m.ToolCallID = toolCall.ID
+		m.Attributes = attrs
+
+		return m, nil
 	}
 
-	m := agent.NewContentMessage(agent.RoleTool, resp)
+	m := agent.NewContentMessage(agent.RoleTool, fmt.Sprintf("tool not found: %s", toolCall.Name))
 	m.ToolCallID = toolCall.ID
 
 	return m, nil
@@ -67,14 +97,14 @@ func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFu
 func (f *Tools) findUnexecutedToolCall(msgs []*agent.Message) *agent.ToolCall {
 	// Track executed tool calls by their IDs
 	executedCallIDs := make(map[string]bool)
-	
+
 	// First pass: collect all executed tool call IDs
 	for _, msg := range msgs {
 		if msg.Role == agent.RoleTool && msg.ToolCallID != "" {
 			executedCallIDs[msg.ToolCallID] = true
 		}
 	}
-	
+
 	// Second pass: find unexecuted tool calls
 	for _, msg := range msgs {
 		if msg.Role == agent.RoleAssistant && msg.HasToolCalls() {
@@ -85,7 +115,7 @@ func (f *Tools) findUnexecutedToolCall(msgs []*agent.Message) *agent.ToolCall {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -93,6 +123,7 @@ func New() *Tools {
 	return &Tools{
 		fns:  make(map[string]agent.Tool),
 		defs: make([]agent.ToolDef, 0),
+		afns: make(map[string]agent.AttributesTool),
 	}
 }
 

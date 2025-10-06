@@ -78,7 +78,7 @@ func TestMultipleToolCalls(t *testing.T) {
 	ts.Add("add", "Add two numbers", EmptyParameters, func(ctx context.Context, args string) (string, error) {
 		return "Sum: 7", nil
 	})
-	
+
 	ts.Add("multiply", "Multiply two numbers", EmptyParameters, func(ctx context.Context, args string) (string, error) {
 		return "Product: 12", nil
 	})
@@ -116,7 +116,7 @@ func TestMultipleToolCalls(t *testing.T) {
 	content2, _ := result2.Content(ctx)
 	assert.Equal(t, "Product: 12", content2)
 
-	// Add the second tool result to messages  
+	// Add the second tool result to messages
 	msgs = append(msgs, result2)
 
 	// Third call should pass to next step since all tools are executed
@@ -131,4 +131,24 @@ func TestMultipleToolCalls(t *testing.T) {
 	assert.True(t, nextStepCalled)
 	content3, _ := result3.Content(ctx)
 	assert.Equal(t, "All done!", content3)
+}
+
+func TestAttributesTool(t *testing.T) {
+	ctx := context.Background()
+
+	ts := New()
+
+	ts.AddAttributesTool("hello", "Say hello", EmptyParameters, func(ctx context.Context, attrs agent.Attributes, args string) (string, error) {
+		attrs.Tag("test")
+		return "Hello world!", nil
+	})
+
+	toolCall := &agent.ToolCall{ID: "test1", Name: "hello", Arguments: "{}"}
+	msg, err := ts.call(ctx, toolCall)
+	require.NoError(t, err)
+
+	content, err := msg.Content(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello world!", content)
+	assert.True(t, msg.HasTag("test"))
 }
