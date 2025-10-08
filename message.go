@@ -33,6 +33,7 @@ type Message struct {
 	ToolCallID string     // Only for tool response messages
 
 	// Reasoning support (optional, primarily for assistant messages)
+	ReasoningID               string   `json:"reasoning_id,omitempty"`
 	ReasoningContent          string   `json:"reasoning_content,omitempty"`           // plain reasoning text
 	ReasoningEncryptedContent string   `json:"reasoning_encrypted_content,omitempty"` // encrypted reasoning blob
 	ReasoningSummaries        []string `json:"reasoning_summaries,omitempty"`         // human-readable summaries

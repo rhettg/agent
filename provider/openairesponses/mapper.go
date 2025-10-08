@@ -50,32 +50,10 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 			}
 
 		case agent.RoleAssistant:
-			// Add the assistant message
-			items = append(items, responses.ResponseInputItemParamOfMessage(content, "assistant"))
-
-			// Add tool calls if present
-			for _, toolCall := range m.ToolCalls {
-				items = append(items, responses.ResponseInputItemParamOfFunctionCall(
-					toolCall.Arguments,
-					toolCall.ID,
-					toolCall.Name,
-				))
-			}
-
-			// Add reasoning if present (encrypted reasoning and summaries are preserved for context)
 			if m.ReasoningContent != "" || m.ReasoningEncryptedContent != "" || len(m.ReasoningSummaries) > 0 {
-				// Create reasoning summaries for input
-				var summaries []responses.ResponseReasoningItemSummaryParam
-				for _, summary := range m.ReasoningSummaries {
-					summaries = append(summaries, responses.ResponseReasoningItemSummaryParam{
-						Text: summary,
-					})
-				}
-
-				// Create reasoning item with all available content
 				reasoningParam := responses.ResponseReasoningItemParam{
-					ID:      fmt.Sprintf("reasoning_%d", len(items)),
-					Summary: summaries,
+					ID:      m.ReasoningID,
+					Summary: []responses.ResponseReasoningItemSummaryParam{}, // required field (but empty)
 				}
 
 				// Include encrypted content if available
@@ -95,6 +73,18 @@ func (p *provider) mapMessagesToInputItems(ctx context.Context, msgs []*agent.Me
 				items = append(items, responses.ResponseInputItemUnionParam{
 					OfReasoning: &reasoningParam,
 				})
+			}
+
+			if content != "" {
+				items = append(items, responses.ResponseInputItemParamOfMessage(content, "assistant"))
+			}
+
+			for _, toolCall := range m.ToolCalls {
+				items = append(items, responses.ResponseInputItemParamOfFunctionCall(
+					toolCall.Arguments,
+					toolCall.ID,
+					toolCall.Name,
+				))
 			}
 
 		case agent.RoleTool:
@@ -123,6 +113,8 @@ func (p *provider) mapResponseToMessage(resp *responses.Response) (*agent.Messag
 	for _, outputItem := range resp.Output {
 		// Extract reasoning
 		if reasoningItem := outputItem.AsReasoning(); reasoningItem.Type == "reasoning" {
+			msg.ReasoningID = reasoningItem.ID
+
 			// Extract reasoning content (text)
 			var contentParts []string
 			for _, contentItem := range reasoningItem.Content {

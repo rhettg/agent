@@ -118,6 +118,10 @@ func (p *provider) Completion(
 	params := responses.ResponseNewParams{
 		Model: shared.ResponsesModel(p.modelName),
 		Input: inputItems,
+		Include: []responses.ResponseIncludable{
+			responses.ResponseIncludableReasoningEncryptedContent,
+		},
+		Store: openai.Bool(false),
 	}
 
 	if p.temperature != nil {
