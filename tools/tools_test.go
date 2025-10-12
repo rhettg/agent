@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/rhettg/agent"
 	"github.com/stretchr/testify/assert"
@@ -216,7 +217,7 @@ func TestToolMiddlewareComposition(t *testing.T) {
 	content, err := msg.Content(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "Greetings!", content)
-	
+
 	// Middleware should execute in onion order: outer before, inner before, tool, inner after, outer after
 	assert.Equal(t, []string{
 		"outer:before",
@@ -254,4 +255,96 @@ func TestToolMiddlewareWithAttributes(t *testing.T) {
 
 	assert.True(t, msg.HasTag("from-tool"))
 	assert.Equal(t, "was-here", msg.Attributes["middleware"])
+}
+
+func TestToolCallNotifier(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a buffered channel to receive events
+	eventCh := make(chan ToolCallEvent, 10)
+
+	ts := New(WithMiddleware(ToolCallNotifier(eventCh)))
+	ts.Add("greet", "Greet someone", EmptyParameters, func(ctx context.Context, args string) (string, error) {
+		return "Hello!", nil
+	})
+
+	toolCall := &agent.ToolCall{ID: "test1", Name: "greet", Arguments: "{}"}
+	msg, err := ts.call(ctx, toolCall)
+	require.NoError(t, err)
+
+	// Check the event was sent
+	select {
+	case event := <-eventCh:
+		assert.Equal(t, "test1", event.ToolCall.ID)
+		assert.Equal(t, "greet", event.ToolCall.Name)
+		assert.NotNil(t, event.Message)
+		assert.NoError(t, event.Error)
+		assert.False(t, event.Started.IsZero())
+		assert.False(t, event.Finished.IsZero())
+		assert.True(t, event.Finished.After(event.Started) || event.Finished.Equal(event.Started))
+
+		content, _ := event.Message.Content(ctx)
+		assert.Equal(t, "Hello!", content)
+	default:
+		t.Fatal("Expected event on channel")
+	}
+
+	// Verify message is correct
+	content, _ := msg.Content(ctx)
+	assert.Equal(t, "Hello!", content)
+}
+
+func TestToolCallStartNotifier(t *testing.T) {
+	ctx := context.Background()
+
+	toolCallCh := make(chan agent.ToolCall, 1)
+
+	ts := New(WithMiddleware(ToolCallStartNotifier(toolCallCh)))
+	ts.Add("greet", "Greet someone", EmptyParameters, func(ctx context.Context, args string) (string, error) {
+		return "Hello!", nil
+	})
+
+	toolCall := &agent.ToolCall{ID: "test1", Name: "greet", Arguments: "{}"}
+
+	msg, err := ts.call(ctx, toolCall)
+	require.NoError(t, err)
+	require.Equal(t, "test1", msg.ToolCallID)
+
+	// Receive from channel with timeout
+	select {
+	case call := <-toolCallCh:
+		assert.Equal(t, "test1", call.ID)
+		assert.Equal(t, "greet", call.Name)
+		assert.Equal(t, "{}", call.Arguments)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Timeout waiting for tool call on channel")
+	}
+}
+
+func TestToolCallNotifierWithError(t *testing.T) {
+	ctx := context.Background()
+
+	eventCh := make(chan ToolCallEvent, 10)
+
+	ts := New(WithMiddleware(ToolCallNotifier(eventCh)))
+	ts.Add("fail", "Fail intentionally", EmptyParameters, func(ctx context.Context, args string) (string, error) {
+		return "", assert.AnError
+	})
+
+	toolCall := &agent.ToolCall{ID: "test1", Name: "fail", Arguments: "{}"}
+	msg, err := ts.call(ctx, toolCall)
+	require.Error(t, err)
+	assert.Nil(t, msg)
+
+	// Check the error event was sent
+	select {
+	case event := <-eventCh:
+		assert.Equal(t, "test1", event.ToolCall.ID)
+		assert.Equal(t, "fail", event.ToolCall.Name)
+		assert.Nil(t, event.Message)
+		assert.Error(t, event.Error)
+		assert.Equal(t, assert.AnError, event.Error)
+	default:
+		t.Fatal("Expected error event on channel")
+	}
 }
