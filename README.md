@@ -193,6 +193,67 @@ a := agent.New(c, tools.WithTools(ts))
 Behind the scenes, `WithTools` middleware will intercept tool invocations and
 run the provided function as an agent step.
 
+#### Tool Middleware
+
+Tool middleware provides a way to add cross-cutting functionality around tool
+execution, such as logging, timing, error handling, or metrics collection. This
+follows the same onion-style middleware pattern as the rest of the framework.
+
+```go
+// Create tools with middleware using the options pattern
+ts := tools.New(
+	tools.WithMiddleware(tools.ToolLogger(slog.Default())),
+)
+
+ts.Add("hello", "receive a welcome message", params, hello)
+
+a := agent.New(c, tools.WithTools(ts))
+```
+
+The `ToolLogger` middleware is provided for logging tool calls with timing information:
+
+```go
+import "log/slog"
+
+ts := tools.New(
+	tools.WithMiddleware(tools.ToolLogger(slog.Default())),
+)
+```
+
+You can create custom middleware to add any functionality around tool execution:
+
+```go
+// Custom middleware that adds timing attributes
+timingMiddleware := func(next tools.ToolInvokeFunc) tools.ToolInvokeFunc {
+	return func(ctx context.Context, call *agent.ToolCall) (*agent.Message, error) {
+		start := time.Now()
+		
+		msg, err := next(ctx, call)
+		
+		if msg != nil {
+			msg.SetAttr("elapsed", time.Since(start).String())
+		}
+		
+		return msg, err
+	}
+}
+
+ts := tools.New(tools.WithMiddleware(timingMiddleware))
+```
+
+Middleware composes in onion layers - the first registered middleware wraps the
+outermost layer. Multiple middleware can be added:
+
+```go
+ts := tools.New(
+	tools.WithMiddleware(loggingMiddleware),
+	tools.WithMiddleware(metricsMiddleware),
+	tools.WithMiddleware(tracingMiddleware),
+)
+```
+
+Tool middleware works transparently with both `Tool` and `AttributesTool` types.
+
 ## Streaming
 
 The library supports real-time streaming of responses from the LLM. This allows you to receive and process content as it's generated, rather than waiting for the complete response.

@@ -7,10 +7,20 @@ import (
 	"github.com/rhettg/agent"
 )
 
+// ToolInvokeFunc executes a single tool call and returns the result message
+type ToolInvokeFunc func(context.Context, *agent.ToolCall) (*agent.Message, error)
+
+// ToolMiddleware wraps a ToolInvokeFunc to add cross-cutting concerns
+type ToolMiddleware func(next ToolInvokeFunc) ToolInvokeFunc
+
+// Option configures a Tools instance
+type Option func(*Tools)
+
 type Tools struct {
 	fns  map[string]agent.Tool
 	afns map[string]agent.AttributesTool
 	defs []agent.ToolDef
+	mws  []ToolMiddleware
 }
 
 func (f *Tools) Add(name, description string, parameters any, fn agent.Tool) {
@@ -45,7 +55,15 @@ func (f *Tools) AddTools(fs *Tools) {
 	}
 }
 
-func (f *Tools) call(ctx context.Context, toolCall *agent.ToolCall) (*agent.Message, error) {
+// WithMiddleware adds middleware to the tool execution stack
+func WithMiddleware(mw ToolMiddleware) Option {
+	return func(t *Tools) {
+		t.mws = append(t.mws, mw)
+	}
+}
+
+// runTool executes the actual tool function without middleware
+func (f *Tools) runTool(ctx context.Context, toolCall *agent.ToolCall) (*agent.Message, error) {
 	if fn, ok := f.fns[toolCall.Name]; ok {
 		resp, err := fn(ctx, toolCall.Arguments)
 		if err != nil {
@@ -78,6 +96,16 @@ func (f *Tools) call(ctx context.Context, toolCall *agent.ToolCall) (*agent.Mess
 	return m, nil
 }
 
+// call wraps runTool with the middleware stack
+func (f *Tools) call(ctx context.Context, toolCall *agent.ToolCall) (*agent.Message, error) {
+	handler := f.runTool
+	// Compose middleware onion from last to first
+	for i := len(f.mws) - 1; i >= 0; i-- {
+		handler = f.mws[i](handler)
+	}
+	return handler(ctx, toolCall)
+}
+
 func (f *Tools) CompletionFunc(nextStep agent.CompletionFunc) agent.CompletionFunc {
 	return func(ctx context.Context, msgs []*agent.Message, tdfs []agent.ToolDef) (*agent.Message, error) {
 		// Find the first unexecuted tool call
@@ -108,9 +136,10 @@ func (f *Tools) findUnexecutedToolCall(msgs []*agent.Message) *agent.ToolCall {
 	// Second pass: find unexecuted tool calls
 	for _, msg := range msgs {
 		if msg.Role == agent.RoleAssistant && msg.HasToolCalls() {
-			for _, toolCall := range msg.ToolCalls {
-				if !executedCallIDs[toolCall.ID] {
-					return &toolCall
+			for i := range msg.ToolCalls {
+				tc := &msg.ToolCalls[i]
+				if !executedCallIDs[tc.ID] {
+					return tc
 				}
 			}
 		}
@@ -119,12 +148,19 @@ func (f *Tools) findUnexecutedToolCall(msgs []*agent.Message) *agent.ToolCall {
 	return nil
 }
 
-func New() *Tools {
-	return &Tools{
+func New(opts ...Option) *Tools {
+	t := &Tools{
 		fns:  make(map[string]agent.Tool),
 		defs: make([]agent.ToolDef, 0),
 		afns: make(map[string]agent.AttributesTool),
+		mws:  make([]ToolMiddleware, 0),
 	}
+	
+	for _, opt := range opts {
+		opt(t)
+	}
+	
+	return t
 }
 
 func NewToolsFromTools(fs *Tools) *Tools {
